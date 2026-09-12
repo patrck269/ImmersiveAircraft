@@ -23,6 +23,7 @@
 
   "key.immersive_aircraft.dismount": "Dismount",
   "key.immersive_aircraft.boost": "Rocket boost",
+  "key.immersive_aircraft.catapult": "Catapult launch",
 
   "entity.immersive_aircraft.airship": "Airship",
   "entity.immersive_aircraft.cargo_airship": "Cargo Airship",

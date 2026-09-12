@@ -535,6 +535,10 @@ public abstract class VehicleEntity extends Entity {
                     Vec3 p = position();
                     level().playLocalSound(p.x(), p.y(), p.z(), SoundEvents.FIREWORK_ROCKET_LAUNCH, SoundSource.NEUTRAL, 1.0f, 1.0f, true);
                 }
+
+                if (KeyBindings.catapult.consumeClick()) {
+                    NetworkHandler.sendToServer(new CommandMessage(CommandMessage.Key.CATAPULT, getDeltaMovement()));
+                }
             }
         }
 

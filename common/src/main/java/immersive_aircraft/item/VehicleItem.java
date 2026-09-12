@@ -1,8 +1,11 @@
 package immersive_aircraft.item;
 
+import immersive_aircraft.block.CatapultBlock;
+import immersive_aircraft.catapult.CatapultLaunch;
 import immersive_aircraft.entity.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.network.chat.Component;
@@ -55,10 +58,18 @@ public class VehicleItem extends DescriptionItem {
 
             entity.fromItemStack(itemStack);
 
-            entity.setPos(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z);
-            entity.setYRot(user.getYRot());
+            BlockPos hitPos = hitResult.getBlockPos();
+            boolean onCatapult = world.getBlockState(hitPos).getBlock() instanceof CatapultBlock;
+            if (onCatapult) {
+                Direction facing = world.getBlockState(hitPos).getValue(CatapultBlock.FACING);
+                entity.setPos(hitPos.getX() + 0.5, hitPos.getY() + CatapultLaunch.HEIGHT, hitPos.getZ() + 0.5);
+                entity.setYRot(facing.toYRot());
+            } else {
+                entity.setPos(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z);
+                entity.setYRot(user.getYRot());
+            }
 
-            if (!world.noCollision(entity, entity.getBoundingBox())) {
+            if (!onCatapult && !world.noCollision(entity, entity.getBoundingBox())) {
                 error(user, "immersive_aircraft.tooltip.no_space");
                 return InteractionResultHolder.fail(itemStack);
             }

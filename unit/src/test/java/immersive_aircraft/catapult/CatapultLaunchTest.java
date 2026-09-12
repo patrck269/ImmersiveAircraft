@@ -23,14 +23,18 @@ class CatapultLaunchTest {
     }
 
     @Test
-    void restOnPadGetsLaunchImpulseAlongLook() {
-        // Vehicle at rest on the pad, looking +Z (north in Minecraft is -Z; +Z is south).
-        double[] launched = CatapultLaunch.launchVelocity(0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+    void restOnPadGetsLaunchImpulseAlongPadFacing() {
+        // Pad facing +Z (south). Impulse is pad facing, not vehicle look.
+        double[] launched = CatapultLaunch.launchVelocity(0.0, 0.0, 0.0, 0.0, 1.0);
         assertEquals(0.0, launched[0], 1e-9);
         assertTrue(launched[2] > 0.0, "forward impulse must be non-zero, was " + launched[2]);
         assertEquals(CatapultLaunch.FORWARD, launched[2], 1e-9);
         assertTrue(launched[1] > 0.0, "up impulse must leave the deck, was " + launched[1]);
         assertEquals(CatapultLaunch.UP, launched[1], 1e-9);
+        double[] west = CatapultLaunch.launchVelocity(0.0, 0.0, 0.0, -1.0, 0.0);
+        assertEquals(-CatapultLaunch.FORWARD, west[0], 1e-9);
+        assertEquals(CatapultLaunch.UP, west[1], 1e-9);
+        assertEquals(0.0, west[2], 1e-9);
     }
 
     @Test

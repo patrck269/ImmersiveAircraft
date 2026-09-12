@@ -1,12 +1,11 @@
 {
   "type": "minecraft:crafting_shaped",
   "pattern": [
-    " P ",
+    " I ",
     "IRI",
     " H "
   ],
   "key": {
-    "P": { "item": "immersive_aircraft:propeller" },
     "I": { "item": "minecraft:iron_ingot" },
     "R": { "item": "minecraft:redstone" },
     "H": { "item": "immersive_aircraft:hull" }

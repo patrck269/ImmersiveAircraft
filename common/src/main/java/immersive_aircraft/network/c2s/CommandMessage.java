@@ -48,6 +48,8 @@ public class CommandMessage extends Message {
                 if (vehicle.canBoost()) {
                     vehicle.boost();
                 }
+            } else if (key == Key.CATAPULT) {
+                immersive_aircraft.block.entity.CatapultBlockEntity.tryLaunchFromKey(vehicle);
             }
         }
 
@@ -62,6 +64,7 @@ public class CommandMessage extends Message {
         DISMOUNT,
         INVENTORY,
         BOOST,
-        DAMAGE
+        DAMAGE,
+        CATAPULT
     }
 }

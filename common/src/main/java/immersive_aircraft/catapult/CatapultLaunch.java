@@ -45,27 +45,25 @@ public final class CatapultLaunch {
 
     /**
      * @param vx,vy,vz current velocity (blocks/tick)
-     * @param fwdX,fwdY,fwdZ vehicle look vector (need not be unit)
+     * @param faceX,faceZ pad horizontal facing (need not be unit; Y is ignored)
      * @return new velocity (blocks/tick)
      */
     public static double[] launchVelocity(
             double vx, double vy, double vz,
-            double fwdX, double fwdY, double fwdZ
+            double faceX, double faceZ
     ) {
-        double len = Math.sqrt(fwdX * fwdX + fwdY * fwdY + fwdZ * fwdZ);
+        double len = Math.sqrt(faceX * faceX + faceZ * faceZ);
         if (len < 1.0e-8) {
-            fwdX = 0.0;
-            fwdY = 0.0;
-            fwdZ = 1.0;
+            faceX = 0.0;
+            faceZ = 1.0;
             len = 1.0;
         }
-        fwdX /= len;
-        fwdY /= len;
-        fwdZ /= len;
+        faceX /= len;
+        faceZ /= len;
         return new double[] {
-                vx + fwdX * FORWARD,
-                vy + fwdY * FORWARD + UP,
-                vz + fwdZ * FORWARD
+                vx + faceX * FORWARD,
+                vy + UP,
+                vz + faceZ * FORWARD
         };
     }
 
