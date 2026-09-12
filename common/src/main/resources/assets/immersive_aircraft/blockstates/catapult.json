@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "immersive_aircraft:block/catapult" },
+    "facing=south": { "model": "immersive_aircraft:block/catapult", "y": 180 },
+    "facing=west": { "model": "immersive_aircraft:block/catapult", "y": 270 },
+    "facing=east": { "model": "immersive_aircraft:block/catapult", "y": 90 }
+  }
+}

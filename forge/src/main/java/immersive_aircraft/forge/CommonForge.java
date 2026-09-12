@@ -26,6 +26,8 @@ public final class CommonForge {
 
     public CommonForge() {
         DataLoaders.bootstrap();
+        Blocks.bootstrap();
+        BlockEntityTypes.bootstrap();
         Items.bootstrap();
         Sounds.bootstrap();
         Entities.bootstrap();

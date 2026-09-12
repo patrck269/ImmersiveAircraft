@@ -1,5 +1,7 @@
 # Immersive Aircraft
 
+This fork adds a **catapult** block (1×1×0.5): redstone rising edge launches an Immersive Aircraft vehicle sitting on the pad. Place it on ground or a Valkyrien Skies / Eureka deck. Design: `docs/superpowers/specs/2026-09-12-catapult-launcher-design.md`.
+
 This mod adds bunch of rustic aircraft to travel, transport, and explore! The aircraft have a strong focus on being
 vanilla-faithful and many details and functionalities, without being overly complicated.
 

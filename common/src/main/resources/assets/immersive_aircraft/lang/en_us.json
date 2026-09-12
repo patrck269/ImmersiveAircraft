@@ -32,6 +32,9 @@
   "entity.immersive_aircraft.quadrocopter": "Quadrocopter",
   "entity.immersive_aircraft.bamboo_hopper": "Bamboo Hopper",
 
+  "block.immersive_aircraft.catapult": "Catapult",
+  "item.immersive_aircraft.catapult": "Catapult",
+
   "item.immersive_aircraft.hull": "Hull",
   "item.immersive_aircraft.engine": "Engine",
   "item.immersive_aircraft.sail": "Sail",

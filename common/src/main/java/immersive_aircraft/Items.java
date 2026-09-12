@@ -7,6 +7,7 @@ import immersive_aircraft.item.AircraftItem;
 import immersive_aircraft.item.DyeableAircraftItem;
 import immersive_aircraft.item.WeaponItem;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
@@ -47,6 +48,7 @@ public interface Items {
     Supplier<Item> GYROSCOPE_DIALS = register("gyroscope_dials", () -> new Item(baseProps().stacksTo(8)));
     Supplier<Item> HULL_REINFORCEMENT = register("hull_reinforcement", () -> new Item(baseProps().stacksTo(8)));
     Supplier<Item> IMPROVED_LANDING_GEAR = register("improved_landing_gear", () -> new Item(baseProps().stacksTo(8)));
+    Supplier<Item> CATAPULT = register("catapult", () -> new BlockItem(immersive_aircraft.Blocks.CATAPULT.get(), baseProps()));
 
     static Supplier<Item> register(String name, Supplier<Item> item) {
         Supplier<Item> register = Registration.register(BuiltInRegistries.ITEM, Main.locate(name), item);
