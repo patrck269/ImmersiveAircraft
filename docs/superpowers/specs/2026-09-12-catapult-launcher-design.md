@@ -16,7 +16,7 @@ No right-click fire, no auto-on-throttle.
 
 ## What launches
 
-Any `immersive_aircraft.entity.VehicleEntity` whose AABB **intersects** the catapult’s collision box (the 1×1×0.5 volume). Occupied and empty vehicles both launch. Vehicles that only fly past above the pad without intersecting the volume are ignored.
+Any `immersive_aircraft.entity.VehicleEntity` whose AABB intersects the **detection** volume: the 1×1×0.5 collision box plus 1 block above the pad top. That includes a legal rest pose with feet on the pad (`minY = 0.5`). Occupied and empty vehicles both launch. A flyer at y=2 is outside the volume and is ignored. Collision/outline stays 1×1×0.5.
 
 ## Impulse
 

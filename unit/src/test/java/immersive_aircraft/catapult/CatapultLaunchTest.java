@@ -42,16 +42,23 @@ class CatapultLaunchTest {
     }
 
     @Test
-    void flyingPastDoesNotIntersectHalfHighPad() {
-        // Pad at origin: y 0..0.5. Vehicle flying at y=2.
-        assertFalse(CatapultLaunch.intersectsPad(
-                0.2, 2.0, 0.2, 0.8, 2.6, 0.8,
-                0.0, 0.0, 0.0, 1.0, 0.5, 1.0
-        ));
-        // Vehicle sitting on the pad.
-        assertTrue(CatapultLaunch.intersectsPad(
-                0.1, 0.0, 0.1, 0.9, 0.8, 0.9,
-                0.0, 0.0, 0.0, 1.0, 0.5, 1.0
-        ));
+    void restOnPadTopIsDetectedFlyerAtTwoIsNot() {
+        // Legal spawn sits on the collision top (minY = HEIGHT), not clipped into the pad.
+        assertTrue(
+                CatapultLaunch.vehicleOnPad(
+                        0.1, CatapultLaunch.HEIGHT, 0.1,
+                        0.9, CatapultLaunch.HEIGHT + 0.8, 0.9,
+                        0.0, 0.0, 0.0
+                ),
+                "feet on pad top must count as on-pad"
+        );
+        assertFalse(
+                CatapultLaunch.vehicleOnPad(
+                        0.2, 2.0, 0.2,
+                        0.8, 2.6, 0.8,
+                        0.0, 0.0, 0.0
+                ),
+                "flyer at y=2 must not count as on-pad"
+        );
     }
 }

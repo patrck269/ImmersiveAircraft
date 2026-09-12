@@ -37,21 +37,22 @@ public class CatapultBlockEntity extends BlockEntity {
     }
 
     private boolean launchVehicles(Level level, BlockPos pos) {
-        AABB pad = new AABB(
-                pos.getX(),
-                pos.getY(),
-                pos.getZ(),
-                pos.getX() + CatapultLaunch.WIDTH,
-                pos.getY() + CatapultLaunch.HEIGHT,
-                pos.getZ() + CatapultLaunch.LENGTH
+        double[] detect = CatapultLaunch.detectionBox();
+        AABB search = new AABB(
+                pos.getX() + detect[0],
+                pos.getY() + detect[1],
+                pos.getZ() + detect[2],
+                pos.getX() + detect[3],
+                pos.getY() + detect[4],
+                pos.getZ() + detect[5]
         );
-        List<VehicleEntity> vehicles = level.getEntitiesOfClass(VehicleEntity.class, pad);
+        List<VehicleEntity> vehicles = level.getEntitiesOfClass(VehicleEntity.class, search);
         boolean fired = false;
         for (VehicleEntity vehicle : vehicles) {
             AABB box = vehicle.getBoundingBox();
-            if (!CatapultLaunch.intersectsPad(
+            if (!CatapultLaunch.vehicleOnPad(
                     box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
-                    pad.minX, pad.minY, pad.minZ, pad.maxX, pad.maxY, pad.maxZ
+                    pos.getX(), pos.getY(), pos.getZ()
             )) {
                 continue;
             }
