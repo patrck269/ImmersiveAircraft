@@ -1,55 +1,68 @@
 # Immersive Aircraft catapult launcher
 
-Date: 2026-09-12
-
-Finer points were not answered in the brainstorming widget. This spec records the **recommended defaults** used for implementation.
+Date: 2026-09-12  
+Repo: `patrck269/ImmersiveAircraft` (fork of `Luke100000/ImmersiveAircraft`), branch `1.20.1`
 
 ## Goal
 
-A placeable **catapult** block in Immersive Aircraft that launches IA vehicles from ordinary ground or a Eureka / Valkyrien Skies ship deck. Collision is **1 wide × 1 long × 0.5 high** (block units).
+A placeable **catapult** in Immersive Aircraft. Collision/outline is **1 wide × 1 long × 0.5 high** (block units). It sits on ordinary world ground and on a Eureka / Valkyrien Skies ship (a normal ship-assemblable block). One vehicle docks to the pad and stays locked until launch.
 
 ## Trigger
 
-**Redstone rising edge.** A neighbor signal going from off to on fires the pad. A held signal does not repeat-fire. Cooldown **40 ticks** (2 seconds) after a successful launch.
+Two equivalent server-side fires:
 
-No right-click fire, no auto-on-throttle.
+1. **Redstone rising edge** — neighbor signal goes off → on. A held signal does not repeat-fire.
+2. **Keybind while sitting in a docked vehicle** — registered in Controls (Immersive Aircraft category). Client sends a packet; the server launches only if that player is in the vehicle currently locked to a pad.
 
-## What launches
+Cooldown **40 ticks (2 seconds)** after a successful launch. Empty pad: pulse or key does nothing.
 
-Any `immersive_aircraft.entity.VehicleEntity` whose AABB intersects the **detection** volume: the 1×1×0.5 collision box plus 1 block above the pad top. That includes a legal rest pose with feet on the pad (`minY = 0.5`). Occupied and empty vehicles both launch. A flyer at y=2 is outside the volume and is ignored. Collision/outline stays 1×1×0.5.
+## Dock / lock
 
-## Impulse
+- A vehicle **placed onto** the pad (item use) or **taxied onto** it docks: at most **one** vehicle per pad.
+- While docked, the vehicle is **clamped** to the pad (position and yaw follow the block, including when the Eureka hull moves) until fire.
+- Legal rest pose is **feet on the pad top** (`minY = 0.5`), not clipped into the 0.5-high collision. Detection volume is the collision box plus **1 block above** the top so Minecraft’s exclusive AABB test still sees that pose. A flyer at y=2 is not on-pad.
+- Vehicle item placement **must be allowed** on the pad (vanilla `noCollision` would otherwise reject spawn on the top face).
 
-Pure transform on the vehicle’s current velocity (blocks/tick):
+## Launch impulse
 
-- Add `FORWARD` (1.5) along the vehicle’s current look/forward unit vector.
-- Add `UP` (0.4) along world +Y.
+On fire, unclamp then add velocity (blocks/tick):
 
-So a pad on a rotated Eureka deck still throws the plane the way it is pointing. Ground pads behave the same.
+- `FORWARD = 1.5` along the **pad’s facing** (horizontal direction property), not the plane’s look vector.
+- `UP = 0.4` along world +Y.
 
-After launch, `onGround` is cleared. Sound: existing `woosh`.
+Clear `onGround`. Play existing `woosh`. Occupied and empty `VehicleEntity` instances both launch (biplane, airship, hopper, Man of Many Planes add-on craft).
 
 ## Block
 
-- Horizontal facing (like a furnace), 1×1×0.5 voxel, no placement guard that forbids ships or non-overworld ground.
-- Normal world block: VS can assemble it onto a Eureka hull.
-- Block item in the Immersive Aircraft creative tab.
-- Recipe (shaped): iron ingots in the corners, redstone in the center, propeller on top, hull below:
+- Horizontal facing (four-way). Voxel **1×1×0.5**. No placement guard that forbids ships.
+- Block entity owns: docked vehicle id, last redstone, cooldown.
+- Creative tab: Immersive Aircraft. Block item drops itself.
+
+Recipe (shaped, **no propeller**):
 
 ```
- P
+ I
 IRI
  H
 ```
 
-P = `immersive_aircraft:propeller`, I = iron ingot, R = redstone, H = `immersive_aircraft:hull`.
+I = iron ingot, R = redstone, H = `immersive_aircraft:hull`.
 
-## Ship glue (Eureka)
+## Eureka
 
-Eureka currently treats empty planes as parked and overwrites velocity to the ship. That would cancel the catapult impulse on the next tick.
+The catapult does **not** load Eureka types. Empty-plane deck glue would cancel the impulse on the next tick, so Eureka must **not** glue a vehicle whose speed relative to the ship is already ≥ **0.25** blocks/tick.
 
-**Required:** Eureka must **not** glue a vehicle whose speed relative to the ship is already above a small threshold (0.25 blocks/tick). The catapult itself does not call Eureka types.
+## Tests
+
+JVM tests drive the shipped functions:
+
+- Collision box is 1×1×0.5.
+- Rest-on-pad (`minY = HEIGHT`) is detected; flyer at y=2 is not.
+- Rising edge fires once; held signal and cooldown do not.
+- Launch impulse is non-zero along pad facing + up.
+
+Forge + VS + IA live ship launch is not the verification bar.
 
 ## Out of scope
 
-Animated arm, fuel, power tiers, Fabric-only jar, Technic local instance copies, PRs to upstream `Luke100000/ImmersiveAircraft`.
+Animated arm, fuel, power tiers, Fabric-only distribution, copying into the local Technic instance, PRs to upstream `Luke100000/ImmersiveAircraft`.
