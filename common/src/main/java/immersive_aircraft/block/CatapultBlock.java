@@ -71,6 +71,6 @@ public class CatapultBlock extends BaseEntityBlock {
     @Nullable
     @Override
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        return level.isClientSide ? null : createTickerHelper(type, immersive_aircraft.BlockEntityTypes.CATAPULT.get(), CatapultBlockEntity::serverTick);
+        return createTickerHelper(type, immersive_aircraft.BlockEntityTypes.CATAPULT.get(), CatapultBlockEntity::tick);
     }
 }

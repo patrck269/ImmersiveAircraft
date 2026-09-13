@@ -1,71 +1,79 @@
 package immersive_aircraft.catapult;
 
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 /**
- * Optional Valkyrien Skies hook. No compile dep on VS or Eureka.
- * Shipyard block entities live at huge coords; vehicles live in world space.
+ * Optional Valkyrien Skies hook. Uses VS's own world-coordinate helpers so a
+ * shipyard block entity can find vehicles in world space.
  */
 public final class CatapultVs {
     private CatapultVs() {
     }
 
-    public static double[] shipToWorldOrIdentity(Level level, BlockPos pos) {
-        double[] m = readShipToWorld(level, pos);
-        return m != null ? m : CatapultLaunch.identityMatrix();
+    public static AABB worldSearch(Level level, BlockPos pad) {
+        double[] d = CatapultLaunch.detectionBox();
+        AABB local = new AABB(
+                pad.getX() + d[0], pad.getY() + d[1], pad.getZ() + d[2],
+                pad.getX() + d[3], pad.getY() + d[4], pad.getZ() + d[5]
+        );
+        return transformAabbToWorld(level, local);
     }
 
-    private static double[] readShipToWorld(Level level, BlockPos pos) {
+    public static Vec3 worldDock(Level level, BlockPos pad) {
+        Vec3 local = new Vec3(pad.getX() + 0.5, pad.getY() + CatapultLaunch.HEIGHT, pad.getZ() + 0.5);
+        return toWorldCoordinates(level, local);
+    }
+
+    public static Vec3 worldFacing(Level level, BlockPos pad, Direction facing) {
+        Vec3 origin = toWorldCoordinates(level, Vec3.atCenterOf(pad));
+        Vec3 tip = toWorldCoordinates(level, Vec3.atCenterOf(pad).add(facing.getStepX(), 0.0, facing.getStepZ()));
+        Vec3 d = tip.subtract(origin);
+        if (d.lengthSqr() < 1.0e-8) {
+            return new Vec3(facing.getStepX(), 0.0, facing.getStepZ());
+        }
+        return d.normalize();
+    }
+
+    public static Vec3 toWorldCoordinates(Level level, Vec3 pos) {
         try {
-            Class<?> kt = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt");
-            Object ship;
-            try {
-                ship = kt.getMethod("getShipManagingPos", Level.class, BlockPos.class)
-                        .invoke(null, level, pos);
-            } catch (NoSuchMethodException e) {
-                ship = kt.getMethod("getShipManagingPos", Level.class, int.class, int.class)
-                        .invoke(null, level, pos.getX() >> 4, pos.getZ() >> 4);
+            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
+                    .getMethod("toWorldCoordinates", Level.class, Vec3.class)
+                    .invoke(null, level, pos);
+            if (v instanceof Vec3 vec) {
+                return vec;
             }
-            if (ship == null) {
-                return null;
-            }
-            Object mat;
-            try {
-                mat = ship.getClass().getMethod("getShipToWorld").invoke(ship);
-            } catch (NoSuchMethodException e) {
-                Object transform = ship.getClass().getMethod("getTransform").invoke(ship);
-                mat = transform.getClass().getMethod("getShipToWorld").invoke(transform);
-            }
-            return packMatrix(mat);
         } catch (Throwable ignored) {
-            return null;
         }
+        return pos;
     }
 
-    private static double[] packMatrix(Object mat) throws Exception {
-        return new double[] {
-                d(mat, "m00"), d(mat, "m10"), d(mat, "m20"), d(mat, "m30"),
-                d(mat, "m01"), d(mat, "m11"), d(mat, "m21"), d(mat, "m31"),
-                d(mat, "m02"), d(mat, "m12"), d(mat, "m22"), d(mat, "m32")
-        };
-    }
-
-    private static double d(Object mat, String name) throws Exception {
-        Class<?> c = mat.getClass();
-        while (c != null) {
-            try {
-                return ((Number) c.getMethod(name).invoke(mat)).doubleValue();
-            } catch (NoSuchMethodException e) {
-                for (Class<?> iface : c.getInterfaces()) {
-                    try {
-                        return ((Number) iface.getMethod(name).invoke(mat)).doubleValue();
-                    } catch (NoSuchMethodException ignored) {
-                    }
-                }
-                c = c.getSuperclass();
+    public static Vec3 toWorldCoordinates(Level level, BlockPos pos) {
+        try {
+            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
+                    .getMethod("toWorldCoordinates", Level.class, BlockPos.class)
+                    .invoke(null, level, pos);
+            if (v instanceof Vec3 vec) {
+                return vec;
             }
+        } catch (Throwable ignored) {
         }
-        throw new NoSuchMethodException(name);
+        return Vec3.atLowerCornerOf(pos);
+    }
+
+    public static AABB transformAabbToWorld(Level level, AABB box) {
+        try {
+            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
+                    .getMethod("transformAabbToWorld", Level.class, AABB.class)
+                    .invoke(null, level, box);
+            if (v instanceof AABB aabb) {
+                return aabb;
+            }
+        } catch (Throwable ignored) {
+        }
+        return box;
     }
 }

@@ -1,7 +1,6 @@
 package immersive_aircraft.item;
 
 import immersive_aircraft.block.CatapultBlock;
-import immersive_aircraft.catapult.CatapultLaunch;
 import immersive_aircraft.catapult.CatapultVs;
 import immersive_aircraft.entity.VehicleEntity;
 import net.minecraft.ChatFormatting;
@@ -21,6 +20,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -63,16 +63,10 @@ public class VehicleItem extends DescriptionItem {
             boolean onCatapult = world.getBlockState(hitPos).getBlock() instanceof CatapultBlock;
             if (onCatapult) {
                 Direction facing = world.getBlockState(hitPos).getValue(CatapultBlock.FACING);
-                double[] mat = CatapultVs.shipToWorldOrIdentity(world, hitPos);
-                double[] dock = CatapultLaunch.transformPoint(
-                        hitPos.getX() + 0.5,
-                        hitPos.getY() + CatapultLaunch.HEIGHT,
-                        hitPos.getZ() + 0.5,
-                        mat
-                );
-                double[] dir = CatapultLaunch.transformDirection(facing.getStepX(), 0.0, facing.getStepZ(), mat);
-                entity.setPos(dock[0], dock[1], dock[2]);
-                entity.setYRot((float) Math.toDegrees(Math.atan2(-dir[0], dir[2])));
+                Vec3 dock = CatapultVs.worldDock(world, hitPos);
+                Vec3 dir = CatapultVs.worldFacing(world, hitPos, facing);
+                entity.setPos(dock.x, dock.y, dock.z);
+                entity.setYRot((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
             } else {
                 entity.setPos(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z);
                 entity.setYRot(user.getYRot());
