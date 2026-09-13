@@ -28,8 +28,11 @@ class CatapultLaunchTest {
         double[] launched = CatapultLaunch.launchVelocity(0.0, 0.0, 0.0, 0.0, 1.0);
         assertEquals(0.0, launched[0], 1e-9);
         assertTrue(launched[2] > 0.0, "forward impulse must be non-zero, was " + launched[2]);
+        assertEquals(3.0, CatapultLaunch.FORWARD, 1e-9, "forward push was doubled from 1.5");
+        assertEquals(0.2, CatapultLaunch.UP, 1e-9, "up push was reduced from 0.4");
         assertEquals(CatapultLaunch.FORWARD, launched[2], 1e-9);
         assertTrue(launched[1] > 0.0, "up impulse must leave the deck, was " + launched[1]);
+        assertTrue(launched[1] < 0.4, "up must be weaker than the old 0.4 pop, was " + launched[1]);
         assertEquals(CatapultLaunch.UP, launched[1], 1e-9);
         double[] west = CatapultLaunch.launchVelocity(0.0, 0.0, 0.0, -1.0, 0.0);
         assertEquals(-CatapultLaunch.FORWARD, west[0], 1e-9);

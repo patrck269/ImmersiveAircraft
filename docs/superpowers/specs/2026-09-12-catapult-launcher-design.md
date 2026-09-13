@@ -27,8 +27,8 @@ Cooldown **40 ticks (2 seconds)** after a successful launch. Empty pad: pulse or
 
 On fire, unclamp then add velocity (blocks/tick):
 
-- `FORWARD = 1.5` along the **pad’s facing** (horizontal direction property), not the plane’s look vector.
-- `UP = 0.4` along world +Y.
+- `FORWARD = 3.0` along the **pad’s facing** (horizontal direction property), not the plane’s look vector.
+- `UP = 0.2` along world +Y.
 
 Clear `onGround`. Play existing `woosh`. Occupied and empty `VehicleEntity` instances both launch (biplane, airship, hopper, Man of Many Planes add-on craft).
 
