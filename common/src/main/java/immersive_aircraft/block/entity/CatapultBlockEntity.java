@@ -4,12 +4,12 @@ import immersive_aircraft.BlockEntityTypes;
 import immersive_aircraft.Sounds;
 import immersive_aircraft.block.CatapultBlock;
 import immersive_aircraft.catapult.CatapultLaunch;
+import immersive_aircraft.catapult.CatapultVs;
 import immersive_aircraft.entity.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -17,9 +17,13 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CatapultBlockEntity extends BlockEntity {
+    private static final Map<UUID, CatapultBlockEntity> DOCKED = new ConcurrentHashMap<>();
+
     private boolean wasPowered;
     private int cooldown;
     private UUID dockedId;
@@ -46,110 +50,121 @@ public class CatapultBlockEntity extends BlockEntity {
         if (vehicle.level().isClientSide) {
             return false;
         }
-        BlockPos origin = vehicle.blockPosition();
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
-                for (int dy = -1; dy <= 0; dy++) {
-                    BlockPos pos = origin.offset(dx, dy, dz);
-                    if (vehicle.level().getBlockEntity(pos) instanceof CatapultBlockEntity be
-                            && vehicle.getUUID().equals(be.dockedId)
-                            && be.cooldown <= 0) {
-                        if (be.fire(vehicle.level(), pos, vehicle.level().getBlockState(pos))) {
-                            be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
-                            be.setChanged();
-                            return true;
-                        }
-                    }
-                }
-            }
+        CatapultBlockEntity be = DOCKED.get(vehicle.getUUID());
+        if (be == null || be.isRemoved() || be.cooldown > 0 || be.getLevel() == null) {
+            return false;
+        }
+        if (be.fire(be.getLevel(), be.getBlockPos(), be.getBlockState())) {
+            be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
+            be.setChanged();
+            return true;
         }
         return false;
     }
 
     private void maintainDock(Level level, BlockPos pos, BlockState state) {
-        VehicleEntity docked = findDocked(level);
-        if (docked != null && onPad(docked, pos)) {
-            clamp(docked, pos, state);
+        VehicleEntity docked = findDocked(level, pos);
+        if (docked != null && onPad(docked, level, pos)) {
+            clamp(docked, level, pos, state);
+            DOCKED.put(docked.getUUID(), this);
             return;
         }
-        this.dockedId = null;
+        clearDock();
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
             this.dockedId = vehicle.getUUID();
-            clamp(vehicle, pos, state);
+            DOCKED.put(vehicle.getUUID(), this);
+            clamp(vehicle, level, pos, state);
             setChanged();
             return;
         }
     }
 
     private boolean fire(Level level, BlockPos pos, BlockState state) {
-        VehicleEntity vehicle = findDocked(level);
-        if (vehicle == null || !onPad(vehicle, pos)) {
-            this.dockedId = null;
+        VehicleEntity vehicle = findDocked(level, pos);
+        if (vehicle == null || !onPad(vehicle, level, pos)) {
+            clearDock();
             return false;
         }
         Direction facing = state.getValue(CatapultBlock.FACING);
+        double[] m = CatapultVs.shipToWorldOrIdentity(level, pos);
+        double[] dir = CatapultLaunch.transformDirection(facing.getStepX(), 0.0, facing.getStepZ(), m);
         Vec3 vel = vehicle.getDeltaMovement();
-        double[] next = CatapultLaunch.launchVelocity(
-                vel.x, vel.y, vel.z,
-                facing.getStepX(), facing.getStepZ()
-        );
-        this.dockedId = null;
+        double[] next = CatapultLaunch.launchVelocity(vel.x, vel.y, vel.z, dir[0], dir[2]);
+        clearDock();
         vehicle.setDeltaMovement(next[0], next[1], next[2]);
         vehicle.hasImpulse = true;
         vehicle.setOnGround(false);
-        level.playSound(null, pos, Sounds.WOOSH.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+        double[] world = CatapultLaunch.transformPoint(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, m);
+        level.playSound(null, world[0], world[1], world[2], Sounds.WOOSH.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
         setChanged();
         return true;
     }
 
-    private VehicleEntity findDocked(Level level) {
+    private void clearDock() {
+        if (this.dockedId != null) {
+            DOCKED.remove(this.dockedId, this);
+        }
+        this.dockedId = null;
+    }
+
+    private VehicleEntity findDocked(Level level, BlockPos pos) {
         if (this.dockedId == null) {
             return null;
         }
-        List<VehicleEntity> found = vehiclesOnPad(level, this.worldPosition);
-        for (VehicleEntity vehicle : found) {
+        for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
             if (this.dockedId.equals(vehicle.getUUID())) {
                 return vehicle;
             }
         }
-        for (Entity entity : level.getEntities((Entity) null, searchBox(this.worldPosition), e -> this.dockedId.equals(e.getUUID()))) {
-            if (entity instanceof VehicleEntity vehicle) {
-                return vehicle;
-            }
-        }
-        return null;
+        AABB search = searchBox(level, pos).inflate(8.0);
+        List<VehicleEntity> extras = level.getEntitiesOfClass(VehicleEntity.class, search, v -> this.dockedId.equals(v.getUUID()));
+        return extras.isEmpty() ? null : extras.get(0);
     }
 
     private List<VehicleEntity> vehiclesOnPad(Level level, BlockPos pos) {
-        return level.getEntitiesOfClass(VehicleEntity.class, searchBox(pos), v -> onPad(v, pos));
+        return level.getEntitiesOfClass(VehicleEntity.class, searchBox(level, pos), v -> onPad(v, level, pos));
     }
 
-    private static AABB searchBox(BlockPos pos) {
-        double[] detect = CatapultLaunch.detectionBox();
-        return new AABB(
-                pos.getX() + detect[0],
-                pos.getY() + detect[1],
-                pos.getZ() + detect[2],
-                pos.getX() + detect[3],
-                pos.getY() + detect[4],
-                pos.getZ() + detect[5]
-        );
+    private static AABB searchBox(Level level, BlockPos pos) {
+        double[] m = CatapultVs.shipToWorldOrIdentity(level, pos);
+        double[] a = CatapultLaunch.worldDetectionAabb(pos.getX(), pos.getY(), pos.getZ(), m);
+        return new AABB(a[0], a[1], a[2], a[3], a[4], a[5]);
     }
 
-    private static boolean onPad(VehicleEntity vehicle, BlockPos pos) {
+    private static boolean onPad(VehicleEntity vehicle, Level level, BlockPos pos) {
         AABB box = vehicle.getBoundingBox();
-        return CatapultLaunch.vehicleOnPad(
+        double[] m = CatapultVs.shipToWorldOrIdentity(level, pos);
+        double[] a = CatapultLaunch.worldDetectionAabb(pos.getX(), pos.getY(), pos.getZ(), m);
+        return CatapultLaunch.intersectsPad(
                 box.minX, box.minY, box.minZ, box.maxX, box.maxY, box.maxZ,
-                pos.getX(), pos.getY(), pos.getZ()
+                a[0], a[1], a[2], a[3], a[4], a[5]
         );
     }
 
-    private static void clamp(VehicleEntity vehicle, BlockPos pos, BlockState state) {
+    private static void clamp(VehicleEntity vehicle, Level level, BlockPos pos, BlockState state) {
         Direction facing = state.getValue(CatapultBlock.FACING);
-        vehicle.setPos(pos.getX() + 0.5, pos.getY() + CatapultLaunch.HEIGHT, pos.getZ() + 0.5);
-        vehicle.setYRot(facing.toYRot());
+        double[] m = CatapultVs.shipToWorldOrIdentity(level, pos);
+        double[] dock = CatapultLaunch.transformPoint(
+                pos.getX() + 0.5,
+                pos.getY() + CatapultLaunch.HEIGHT,
+                pos.getZ() + 0.5,
+                m
+        );
+        double[] dir = CatapultLaunch.transformDirection(facing.getStepX(), 0.0, facing.getStepZ(), m);
+        vehicle.setPos(dock[0], dock[1], dock[2]);
+        vehicle.setYRot(yawFromDir(dir[0], dir[2]));
         vehicle.setDeltaMovement(Vec3.ZERO);
         vehicle.setOnGround(true);
+    }
+
+    private static float yawFromDir(double x, double z) {
+        return (float) Math.toDegrees(Math.atan2(-x, z));
+    }
+
+    @Override
+    public void setRemoved() {
+        clearDock();
+        super.setRemoved();
     }
 
     @Override

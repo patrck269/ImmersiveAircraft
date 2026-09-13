@@ -2,6 +2,7 @@ package immersive_aircraft.item;
 
 import immersive_aircraft.block.CatapultBlock;
 import immersive_aircraft.catapult.CatapultLaunch;
+import immersive_aircraft.catapult.CatapultVs;
 import immersive_aircraft.entity.VehicleEntity;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -62,8 +63,16 @@ public class VehicleItem extends DescriptionItem {
             boolean onCatapult = world.getBlockState(hitPos).getBlock() instanceof CatapultBlock;
             if (onCatapult) {
                 Direction facing = world.getBlockState(hitPos).getValue(CatapultBlock.FACING);
-                entity.setPos(hitPos.getX() + 0.5, hitPos.getY() + CatapultLaunch.HEIGHT, hitPos.getZ() + 0.5);
-                entity.setYRot(facing.toYRot());
+                double[] mat = CatapultVs.shipToWorldOrIdentity(world, hitPos);
+                double[] dock = CatapultLaunch.transformPoint(
+                        hitPos.getX() + 0.5,
+                        hitPos.getY() + CatapultLaunch.HEIGHT,
+                        hitPos.getZ() + 0.5,
+                        mat
+                );
+                double[] dir = CatapultLaunch.transformDirection(facing.getStepX(), 0.0, facing.getStepZ(), mat);
+                entity.setPos(dock[0], dock[1], dock[2]);
+                entity.setYRot((float) Math.toDegrees(Math.atan2(-dir[0], dir[2])));
             } else {
                 entity.setPos(hitResult.getLocation().x, hitResult.getLocation().y, hitResult.getLocation().z);
                 entity.setYRot(user.getYRot());

@@ -65,4 +65,48 @@ class CatapultLaunchTest {
                 "flyer at y=2 must not count as on-pad"
         );
     }
+
+    @Test
+    void shipTransformMapsShipyardPadOntoWorldVehicle() {
+        // Identity: world == ship space.
+        double[] id = CatapultLaunch.identityMatrix();
+        double[] local = CatapultLaunch.worldDetectionAabb(0, 64, 0, id);
+        assertEquals(0.0, local[0], 1e-9);
+        assertEquals(64.0, local[1], 1e-9);
+        assertEquals(1.0, local[3], 1e-9);
+        assertEquals(64.0 + CatapultLaunch.HEIGHT + CatapultLaunch.DETECT_ABOVE, local[4], 1e-9);
+
+        // Translate shipyard pad (1_875_000, 100, 10) to world (20, 70, -40).
+        double[] m = CatapultLaunch.translationMatrix(20.0 - 1_875_000.0, 70.0 - 100.0, -40.0 - 10.0);
+        double[] worldPad = CatapultLaunch.worldDetectionAabb(1_875_000, 100, 10, m);
+        // Vehicle sitting on the world pad top.
+        assertTrue(
+                CatapultLaunch.intersectsPad(
+                        20.1, 70.0 + CatapultLaunch.HEIGHT, -39.9,
+                        20.9, 70.0 + CatapultLaunch.HEIGHT + 0.8, -39.1,
+                        worldPad[0], worldPad[1], worldPad[2],
+                        worldPad[3], worldPad[4], worldPad[5]
+                ),
+                "vehicle in world space must lock to a ship-mounted pad"
+        );
+        assertFalse(
+                CatapultLaunch.intersectsPad(
+                        20.2, 72.0, -39.8,
+                        20.8, 72.6, -39.2,
+                        worldPad[0], worldPad[1], worldPad[2],
+                        worldPad[3], worldPad[4], worldPad[5]
+                ),
+                "flyer above the world pad still ignored"
+        );
+
+        double[] dock = CatapultLaunch.transformPoint(1_875_000.5, 100.0 + CatapultLaunch.HEIGHT, 10.5, m);
+        assertEquals(20.5, dock[0], 1e-6);
+        assertEquals(70.0 + CatapultLaunch.HEIGHT, dock[1], 1e-6);
+        assertEquals(-39.5, dock[2], 1e-6);
+
+        double[] dir = CatapultLaunch.transformDirection(0.0, 0.0, 1.0, m);
+        assertEquals(0.0, dir[0], 1e-9);
+        assertEquals(0.0, dir[1], 1e-9);
+        assertEquals(1.0, dir[2], 1e-9);
+    }
 }
