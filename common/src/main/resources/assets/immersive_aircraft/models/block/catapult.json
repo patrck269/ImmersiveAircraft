@@ -1,20 +1,25 @@
 {
   "parent": "block/block",
   "textures": {
-    "all": "minecraft:block/iron_block",
-    "particle": "minecraft:block/iron_block"
+    "particle": "immersive_aircraft:block/catapult_top",
+    "top": "immersive_aircraft:block/catapult_top",
+    "bottom": "immersive_aircraft:block/catapult_bottom",
+    "front": "immersive_aircraft:block/catapult_front",
+    "back": "immersive_aircraft:block/catapult_back",
+    "west": "immersive_aircraft:block/catapult_side_east",
+    "east": "immersive_aircraft:block/catapult_side"
   },
   "elements": [
     {
       "from": [0, 0, 0],
       "to": [16, 8, 16],
       "faces": {
-        "down": { "texture": "#all", "cullface": "down" },
-        "up": { "texture": "#all" },
-        "north": { "texture": "#all" },
-        "south": { "texture": "#all" },
-        "west": { "texture": "#all" },
-        "east": { "texture": "#all" }
+        "down": { "uv": [0, 0, 16, 16], "texture": "#bottom", "cullface": "down" },
+        "up": { "uv": [0, 0, 16, 16], "texture": "#top" },
+        "north": { "uv": [0, 8, 16, 16], "texture": "#front" },
+        "south": { "uv": [0, 8, 16, 16], "texture": "#back" },
+        "west": { "uv": [0, 8, 16, 16], "texture": "#west" },
+        "east": { "uv": [0, 8, 16, 16], "texture": "#east" }
       }
     }
   ]

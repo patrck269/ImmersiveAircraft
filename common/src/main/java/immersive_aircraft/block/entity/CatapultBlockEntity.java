@@ -101,6 +101,7 @@ public class CatapultBlockEntity extends BlockEntity {
         Vec3 vel = vehicle.getDeltaMovement();
         double[] next = CatapultLaunch.launchVelocity(vel.x, vel.y, vel.z, dir.x, dir.z);
         clearDock();
+        vehicle.addTag(CatapultLaunch.LAUNCH_TAG);
         vehicle.setDeltaMovement(next[0], next[1], next[2]);
         vehicle.hasImpulse = true;
         vehicle.setOnGround(false);

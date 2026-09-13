@@ -1,3 +1,6 @@
 {
-  "parent": "immersive_aircraft:block/catapult"
+  "parent": "item/generated",
+  "textures": {
+    "layer0": "immersive_aircraft:item/catapult"
+  }
 }

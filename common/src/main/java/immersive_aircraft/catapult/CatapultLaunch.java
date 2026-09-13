@@ -11,6 +11,7 @@ public final class CatapultLaunch {
     public static final double FORWARD = 1.5;
     public static final double UP = 0.4;
     public static final int COOLDOWN_TICKS = 40;
+    public static final String LAUNCH_TAG = "ia_catapult_launch";
     /** Extra height above the collision top so a vehicle with minY = HEIGHT is on-pad. */
     public static final double DETECT_ABOVE = 1.0;
 
