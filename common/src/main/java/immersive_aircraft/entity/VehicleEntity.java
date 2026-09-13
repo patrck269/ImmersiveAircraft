@@ -537,6 +537,7 @@ public abstract class VehicleEntity extends Entity {
                 }
 
                 if (KeyBindings.catapult.consumeClick()) {
+                    immersive_aircraft.block.entity.CatapultBlockEntity.tryLaunchFromKey(this);
                     NetworkHandler.sendToServer(new CommandMessage(CommandMessage.Key.CATAPULT, getDeltaMovement()));
                 }
             }

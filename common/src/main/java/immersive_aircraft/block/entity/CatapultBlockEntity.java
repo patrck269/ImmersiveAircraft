@@ -9,6 +9,9 @@ import immersive_aircraft.entity.VehicleEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -42,6 +45,7 @@ public class CatapultBlockEntity extends BlockEntity {
         if (CatapultLaunch.shouldFire(powered, be.wasPowered, be.cooldown)) {
             if (be.fire(level, pos, state)) {
                 be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
+                be.sync();
             }
         }
         be.wasPowered = powered;
@@ -51,16 +55,13 @@ public class CatapultBlockEntity extends BlockEntity {
     }
 
     public static boolean tryLaunchFromKey(VehicleEntity vehicle) {
-        if (vehicle.level().isClientSide) {
-            return false;
-        }
         CatapultBlockEntity be = DOCKED.get(vehicle.getUUID());
         if (be == null || be.isRemoved() || be.cooldown > 0 || be.getLevel() == null) {
             return false;
         }
         if (be.fire(be.getLevel(), be.getBlockPos(), be.getBlockState())) {
             be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
-            be.setChanged();
+            be.sync();
             return true;
         }
         return false;
@@ -68,6 +69,11 @@ public class CatapultBlockEntity extends BlockEntity {
 
     private void clientClamp(Level level, BlockPos pos, BlockState state) {
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
+            if (!mayClamp(vehicle)) {
+                continue;
+            }
+            this.dockedId = vehicle.getUUID();
+            DOCKED.put(vehicle.getUUID(), this);
             clamp(vehicle, level, pos, state);
             return;
         }
@@ -76,12 +82,17 @@ public class CatapultBlockEntity extends BlockEntity {
     private void maintainDock(Level level, BlockPos pos, BlockState state) {
         VehicleEntity docked = findDocked(level, pos);
         if (docked != null && onPad(docked, level, pos)) {
-            clamp(docked, level, pos, state);
-            DOCKED.put(docked.getUUID(), this);
+            if (mayClamp(docked)) {
+                clamp(docked, level, pos, state);
+                DOCKED.put(docked.getUUID(), this);
+            }
             return;
         }
         clearDock();
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
+            if (!mayClamp(vehicle)) {
+                continue;
+            }
             this.dockedId = vehicle.getUUID();
             DOCKED.put(vehicle.getUUID(), this);
             clamp(vehicle, level, pos, state);
@@ -106,9 +117,28 @@ public class CatapultBlockEntity extends BlockEntity {
         vehicle.hasImpulse = true;
         vehicle.setOnGround(false);
         Vec3 sound = CatapultVs.worldDock(level, pos);
-        level.playSound(null, sound.x, sound.y, sound.z, Sounds.WOOSH.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+        if (level.isClientSide) {
+            level.playLocalSound(sound.x, sound.y, sound.z, Sounds.WOOSH.get(), SoundSource.BLOCKS, 1.0f, 1.0f, false);
+        } else {
+            level.playSound(null, sound.x, sound.y, sound.z, Sounds.WOOSH.get(), SoundSource.BLOCKS, 1.0f, 1.0f);
+        }
         setChanged();
         return true;
+    }
+
+    private boolean mayClamp(VehicleEntity vehicle) {
+        return CatapultLaunch.shouldClampDock(
+                this.cooldown,
+                vehicle.getTags().contains(CatapultLaunch.LAUNCH_TAG),
+                vehicle.getDeltaMovement().horizontalDistance()
+        );
+    }
+
+    private void sync() {
+        setChanged();
+        if (level != null && !level.isClientSide) {
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), 3);
+        }
     }
 
     private void clearDock() {
@@ -177,5 +207,17 @@ public class CatapultBlockEntity extends BlockEntity {
         this.wasPowered = tag.getBoolean("WasPowered");
         this.cooldown = tag.getInt("Cooldown");
         this.dockedId = tag.hasUUID("Docked") ? tag.getUUID("Docked") : null;
+    }
+
+    @Override
+    public CompoundTag getUpdateTag() {
+        CompoundTag tag = new CompoundTag();
+        saveAdditional(tag);
+        return tag;
+    }
+
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 }

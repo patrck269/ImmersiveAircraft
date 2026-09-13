@@ -46,7 +46,7 @@ public class KeyBindings {
 
         dismount = newKey("dismount", GLFW.GLFW_KEY_R);
         boost = newKey("boost", GLFW.GLFW_KEY_B);
-        catapult = newKey("catapult", GLFW.GLFW_KEY_C);
+        catapult = newKey("catapult", GLFW.GLFW_KEY_Z);
     }
 
     private static KeyMapping newFallbackKey(String name, Supplier<KeyMapping> fallback) {

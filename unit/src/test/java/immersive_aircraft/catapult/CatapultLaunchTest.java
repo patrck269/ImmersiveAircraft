@@ -41,6 +41,30 @@ class CatapultLaunchTest {
     }
 
     @Test
+    void dockClampStopsAfterKeyLaunchSoImpulseIsNotZeroed() {
+        assertTrue(
+                CatapultLaunch.shouldClampDock(0, false, 0.0),
+                "idle pad must still lock"
+        );
+        assertTrue(
+                CatapultLaunch.shouldClampDock(0, false, 0.1),
+                "slow taxi onto the pad must still lock"
+        );
+        assertFalse(
+                CatapultLaunch.shouldClampDock(CatapultLaunch.COOLDOWN_TICKS, false, 0.0),
+                "cooldown after fire must not re-clamp and eat the launch"
+        );
+        assertFalse(
+                CatapultLaunch.shouldClampDock(0, true, 0.0),
+                "launch tag must not re-clamp"
+        );
+        assertFalse(
+                CatapultLaunch.shouldClampDock(0, false, CatapultLaunch.FORWARD),
+                "already-thrown speed must not re-clamp"
+        );
+    }
+
+    @Test
     void risingEdgeFiresOnceThenCoolsDown() {
         assertTrue(CatapultLaunch.shouldFire(true, false, 0));
         assertFalse(CatapultLaunch.shouldFire(true, true, 0), "held signal must not re-fire");

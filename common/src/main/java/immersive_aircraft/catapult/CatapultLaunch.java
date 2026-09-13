@@ -72,6 +72,20 @@ public final class CatapultLaunch {
         return signalNow && !signalWas && cooldownRemaining <= 0;
     }
 
+    /**
+     * Occupied planes are client-authoritative. If the pad reclamps after a key
+     * or redstone fire, it zeroes the impulse before {@code move()} runs.
+     */
+    public static boolean shouldClampDock(int cooldownRemaining, boolean launchTagged, double horizontalSpeed) {
+        if (cooldownRemaining > 0) {
+            return false;
+        }
+        if (launchTagged) {
+            return false;
+        }
+        return horizontalSpeed < FORWARD * 0.5;
+    }
+
     /** Column-major 3x4 affine: x' = m0*x + m1*y + m2*z + m3, etc. */
     public static double[] identityMatrix() {
         return new double[] {
