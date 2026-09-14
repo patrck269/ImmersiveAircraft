@@ -73,6 +73,20 @@ public final class CatapultLaunch {
     }
 
     /**
+     * Horizontal facing steps (x, z) for a newly placed pad. {@code lookStep}
+     * is the player's horizontal look. The pad faces <em>away</em> from the
+     * player (same as look), not toward them (look opposite).
+     */
+    public static int[] placementFacing(int lookStepX, int lookStepZ) {
+        return new int[] {lookStepX, lookStepZ};
+    }
+
+    /** World Y of the pad rest pose: collision top, not a full-block {@code padY+1}. */
+    public static double dockY(double padBlockY) {
+        return padBlockY + HEIGHT;
+    }
+
+    /**
      * Occupied planes are client-authoritative. If the pad reclamps after a key
      * or redstone fire, it zeroes the impulse before {@code move()} runs.
      */

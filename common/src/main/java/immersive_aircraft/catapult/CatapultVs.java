@@ -24,7 +24,7 @@ public final class CatapultVs {
     }
 
     public static Vec3 worldDock(Level level, BlockPos pad) {
-        Vec3 local = new Vec3(pad.getX() + 0.5, pad.getY() + CatapultLaunch.HEIGHT, pad.getZ() + 0.5);
+        Vec3 local = new Vec3(pad.getX() + 0.5, CatapultLaunch.dockY(pad.getY()), pad.getZ() + 0.5);
         return toWorldCoordinates(level, local);
     }
 

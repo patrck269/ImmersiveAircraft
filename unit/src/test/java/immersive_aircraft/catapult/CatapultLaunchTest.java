@@ -9,6 +9,38 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CatapultLaunchTest {
 
     @Test
+    void placementFacingIsPlayerLookNotOpposite() {
+        // Look +Z (south): pad must face +Z (away), not −Z (toward the player).
+        int[] south = CatapultLaunch.placementFacing(0, 1);
+        assertEquals(0, south[0]);
+        assertEquals(1, south[1], "look +Z must face +Z, not getOpposite()");
+        int[] north = CatapultLaunch.placementFacing(0, -1);
+        assertEquals(0, north[0]);
+        assertEquals(-1, north[1]);
+        int[] east = CatapultLaunch.placementFacing(1, 0);
+        assertEquals(1, east[0]);
+        assertEquals(0, east[1]);
+        int[] west = CatapultLaunch.placementFacing(-1, 0);
+        assertEquals(-1, west[0]);
+        assertEquals(0, west[1]);
+        assertFalse(
+                south[1] == -1,
+                "must not be 180° from look (old furnace-style toward-player facing)"
+        );
+    }
+
+    @Test
+    void unoccupiedDockYIsHalfBlockPadTopNotFullBlock() {
+        assertEquals(0.5, CatapultLaunch.dockY(0.0), 1e-9);
+        assertEquals(64.5, CatapultLaunch.dockY(64.0), 1e-9);
+        assertEquals(CatapultLaunch.HEIGHT, CatapultLaunch.dockY(0.0), 1e-9);
+        assertFalse(
+                Math.abs(CatapultLaunch.dockY(0.0) - 1.0) < 1e-9,
+                "must not rest at padY+1 on a 0.5-high pad"
+        );
+    }
+
+    @Test
     void collisionIsOneByOneByHalf() {
         assertEquals(1.0, CatapultLaunch.WIDTH, 1e-9);
         assertEquals(1.0, CatapultLaunch.LENGTH, 1e-9);

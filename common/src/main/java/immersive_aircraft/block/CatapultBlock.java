@@ -54,7 +54,16 @@ public class CatapultBlock extends BaseEntityBlock {
 
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
+        Direction look = context.getHorizontalDirection();
+        int[] steps = CatapultLaunch.placementFacing(look.getStepX(), look.getStepZ());
+        Direction facing = look;
+        for (Direction d : Direction.Plane.HORIZONTAL) {
+            if (d.getStepX() == steps[0] && d.getStepZ() == steps[1]) {
+                facing = d;
+                break;
+            }
+        }
+        return this.defaultBlockState().setValue(FACING, facing);
     }
 
     @Override
