@@ -37,6 +37,9 @@ public class CatapultBlockEntity extends BlockEntity {
 
     public static void tick(Level level, BlockPos pos, BlockState state, CatapultBlockEntity be) {
         if (level.isClientSide) {
+            if (be.cooldown > 0) {
+                be.cooldown--;
+            }
             be.clientClamp(level, pos, state);
             return;
         }
@@ -184,6 +187,7 @@ public class CatapultBlockEntity extends BlockEntity {
         vehicle.setYRot((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
         vehicle.setDeltaMovement(Vec3.ZERO);
         vehicle.setOnGround(true);
+        vehicle.removeTag(CatapultLaunch.LAUNCH_TAG);
     }
 
     @Override

@@ -86,14 +86,21 @@ class CatapultLaunchTest {
                 CatapultLaunch.shouldClampDock(CatapultLaunch.COOLDOWN_TICKS, false, 0.0),
                 "cooldown after fire must not re-clamp and eat the launch"
         );
-        assertFalse(
+        assertTrue(
                 CatapultLaunch.shouldClampDock(0, true, 0.0),
-                "launch tag must not re-clamp"
+                "after launch, a stopped plane on the pad must lock again"
+        );
+        assertFalse(
+                CatapultLaunch.shouldClampDock(0, true, CatapultLaunch.FORWARD),
+                "still-flying launch must not re-clamp"
         );
         assertFalse(
                 CatapultLaunch.shouldClampDock(0, false, CatapultLaunch.FORWARD),
                 "already-thrown speed must not re-clamp"
         );
+        assertTrue(CatapultLaunch.shouldClearLaunchTag(0.0));
+        assertFalse(CatapultLaunch.shouldClearLaunchTag(CatapultLaunch.FORWARD));
+        assertTrue(CatapultLaunch.COOLDOWN_TICKS <= 10, "cooldown was 40 ticks; keep it short");
     }
 
     @Test

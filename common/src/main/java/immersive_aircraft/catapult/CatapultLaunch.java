@@ -10,7 +10,7 @@ public final class CatapultLaunch {
     public static final double HEIGHT = 0.5;
     public static final double FORWARD = 3.0;
     public static final double UP = 0.2;
-    public static final int COOLDOWN_TICKS = 40;
+    public static final int COOLDOWN_TICKS = 10;
     public static final String LAUNCH_TAG = "ia_catapult_launch";
     /** Extra height above the collision top so a vehicle with minY = HEIGHT is on-pad. */
     public static final double DETECT_ABOVE = 1.0;
@@ -94,10 +94,15 @@ public final class CatapultLaunch {
         if (cooldownRemaining > 0) {
             return false;
         }
-        if (launchTagged) {
+        if (horizontalSpeed >= FORWARD * 0.5) {
             return false;
         }
-        return horizontalSpeed < FORWARD * 0.5;
+        // Launch tag must not block forever: a slow plane on the pad is a landing, not a launch.
+        return true;
+    }
+
+    public static boolean shouldClearLaunchTag(double horizontalSpeed) {
+        return horizontalSpeed < FORWARD * 0.25;
     }
 
     /** Column-major 3x4 affine: x' = m0*x + m1*y + m2*z + m3, etc. */
