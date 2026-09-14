@@ -381,6 +381,11 @@ public abstract class VehicleEntity extends Entity {
         this.interpolationSteps = 10;
     }
 
+    /** Pad clamp must not lerp toward a stale/high server pose after dismount. */
+    public void cancelInterpolation() {
+        interpolationSteps = 0;
+    }
+
     private static float getMovementMultiplier(boolean positive, boolean negative) {
         if (positive == negative) {
             return 0.0f;

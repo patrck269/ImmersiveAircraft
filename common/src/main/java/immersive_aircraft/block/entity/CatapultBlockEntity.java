@@ -179,6 +179,7 @@ public class CatapultBlockEntity extends BlockEntity {
         Direction facing = state.getValue(CatapultBlock.FACING);
         Vec3 dock = CatapultVs.worldDock(level, pos);
         Vec3 dir = CatapultVs.worldFacing(level, pos, facing);
+        vehicle.cancelInterpolation();
         vehicle.setPos(dock.x, dock.y, dock.z);
         vehicle.setYRot((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
         vehicle.setDeltaMovement(Vec3.ZERO);
