@@ -15,6 +15,7 @@ loom {
         extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
 
         mixinConfig "immersive_aircraft.mixins.json"
+        mixinConfig "immersive_aircraft.forge.mixins.json"
     }
 }
 
@@ -28,6 +29,8 @@ configurations {
 
 dependencies {
     forge "net.minecraftforge:forge:${rootProject.minecraft_version}-${rootProject.forge_version}"
+
+    modCompileOnly files("M:/Working/jazz/mods/ProjectE-1.20.1-PE1.0.1.jar")
 
     forgeRuntimeLibrary 'org.mariuszgromada.math:MathParser.org-mXparser:5.2.1'
     include 'org.mariuszgromada.math:MathParser.org-mXparser:5.2.1'

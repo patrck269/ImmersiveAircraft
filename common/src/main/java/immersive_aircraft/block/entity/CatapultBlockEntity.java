@@ -77,19 +77,27 @@ public class CatapultBlockEntity extends BlockEntity {
             }
             this.dockedId = vehicle.getUUID();
             DOCKED.put(vehicle.getUUID(), this);
+            vehicle.lockToPad();
             clamp(vehicle, level, pos, state);
             return;
         }
+        unlockDocked(level, pos);
     }
 
     private void maintainDock(Level level, BlockPos pos, BlockState state) {
         VehicleEntity docked = findDocked(level, pos);
         if (docked != null && onPad(docked, level, pos)) {
             if (mayClamp(docked)) {
+                docked.lockToPad();
                 clamp(docked, level, pos, state);
                 DOCKED.put(docked.getUUID(), this);
+            } else {
+                docked.unlockFromPad();
             }
             return;
+        }
+        if (docked != null) {
+            docked.unlockFromPad();
         }
         clearDock();
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
@@ -98,6 +106,7 @@ public class CatapultBlockEntity extends BlockEntity {
             }
             this.dockedId = vehicle.getUUID();
             DOCKED.put(vehicle.getUUID(), this);
+            vehicle.lockToPad();
             clamp(vehicle, level, pos, state);
             setChanged();
             return;
@@ -114,6 +123,7 @@ public class CatapultBlockEntity extends BlockEntity {
         Vec3 dir = CatapultVs.worldFacing(level, pos, facing);
         Vec3 vel = vehicle.getDeltaMovement();
         double[] next = CatapultLaunch.launchVelocity(vel.x, vel.y, vel.z, dir.x, dir.z);
+        vehicle.unlockFromPad();
         clearDock();
         vehicle.addTag(CatapultLaunch.LAUNCH_TAG);
         vehicle.setDeltaMovement(next[0], next[1], next[2]);
@@ -151,6 +161,13 @@ public class CatapultBlockEntity extends BlockEntity {
         this.dockedId = null;
     }
 
+    private void unlockDocked(Level level, BlockPos pos) {
+        VehicleEntity docked = findDocked(level, pos);
+        if (docked != null) {
+            docked.unlockFromPad();
+        }
+    }
+
     private VehicleEntity findDocked(Level level, BlockPos pos) {
         if (this.dockedId == null) {
             return null;
@@ -182,6 +199,7 @@ public class CatapultBlockEntity extends BlockEntity {
         Direction facing = state.getValue(CatapultBlock.FACING);
         Vec3 dock = CatapultVs.worldDock(level, pos);
         Vec3 dir = CatapultVs.worldFacing(level, pos, facing);
+        vehicle.lockToPad();
         vehicle.cancelInterpolation();
         vehicle.setPos(dock.x, dock.y, dock.z);
         vehicle.setYRot((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));

@@ -8,6 +8,7 @@ import immersive_aircraft.Main;
 import immersive_aircraft.Sounds;
 import immersive_aircraft.client.KeyBindings;
 import immersive_aircraft.cobalt.network.NetworkHandler;
+import immersive_aircraft.catapult.CatapultLaunch;
 import immersive_aircraft.config.AutoEnterRules;
 import immersive_aircraft.config.Config;
 import immersive_aircraft.data.VehicleDataLoader;
@@ -81,6 +82,7 @@ public abstract class VehicleEntity extends Entity {
     protected static final EntityDataAccessor<Integer> BOOST = SynchedEntityData.defineId(VehicleEntity.class, EntityDataSerializers.INT);
 
     protected int interpolationSteps;
+    protected boolean padLocked;
     protected int lastTriedToExit;
 
     protected double x;
@@ -378,12 +380,29 @@ public abstract class VehicleEntity extends Entity {
         this.z = z;
         serverYRot = yaw;
         serverXRot = pitch;
+        if (!CatapultLaunch.shouldLerpToServerPose(
+                padLocked,
+                getTags().contains("eureka_landed_on_ship"),
+                isControlledByLocalInstance()
+        )) {
+            this.interpolationSteps = 0;
+            return;
+        }
         this.interpolationSteps = 10;
     }
 
     /** Pad clamp must not lerp toward a stale/high server pose after dismount. */
     public void cancelInterpolation() {
         interpolationSteps = 0;
+    }
+
+    public void lockToPad() {
+        padLocked = true;
+        interpolationSteps = 0;
+    }
+
+    public void unlockFromPad() {
+        padLocked = false;
     }
 
     private static float getMovementMultiplier(boolean positive, boolean negative) {
@@ -572,6 +591,14 @@ public abstract class VehicleEntity extends Entity {
         if (isControlledByLocalInstance()) {
             interpolationSteps = 0;
             syncPacketPositionCodec(getX(), getY(), getZ());
+        }
+        if (!CatapultLaunch.shouldLerpToServerPose(
+                padLocked,
+                getTags().contains("eureka_landed_on_ship"),
+                isControlledByLocalInstance()
+        )) {
+            interpolationSteps = 0;
+            return;
         }
         if (interpolationSteps <= 0) {
             return;

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "immersive_aircraft.forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "plugin": "immersive_aircraft.mixin.ImmersiveAircraftMixinPlugin",
+  "mixins": [
+    "MixinProjectEFireworkNbt"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

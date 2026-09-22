@@ -105,7 +105,7 @@ public final class Config extends JsonConfig {
     @BooleanConfigEntry(true)
     public boolean dropAircraft;
 
-    @BooleanConfigEntry(true)
+    @BooleanConfigEntry(false)
     public boolean dropInventory;
 
     @BooleanConfigEntry(false)

@@ -7,6 +7,7 @@ import immersive_aircraft.data.VehicleDataLoader;
 import immersive_aircraft.entity.inventory.SparseSimpleInventory;
 import immersive_aircraft.entity.inventory.VehicleInventoryDescription;
 import immersive_aircraft.entity.inventory.slots.SlotDescription;
+import immersive_aircraft.inventory.VehicleBreakPolicy;
 import immersive_aircraft.entity.misc.VehicleProperties;
 import immersive_aircraft.entity.misc.WeaponMount;
 import immersive_aircraft.entity.weapon.Telescope;
@@ -121,8 +122,11 @@ public abstract class InventoryVehicleEntity extends DyeableVehicleEntity implem
     @Override
     protected void dropInventory() {
         for (SlotDescription slot : getInventoryDescription().getSlots()) {
-            boolean isCargo = slot.type().equals(VehicleInventoryDescription.INVENTORY);
-            if (isCargo && Config.getInstance().dropInventory || !isCargo && Config.getInstance().dropUpgrades) {
+            if (VehicleBreakPolicy.shouldWorldDrop(
+                    slot.type(),
+                    Config.getInstance().dropInventory,
+                    Config.getInstance().dropUpgrades
+            )) {
                 ItemStack stack = getSlot(slot.index()).get();
                 if (!stack.isEmpty()) {
                     this.spawnAtLocation(stack.copyAndClear());

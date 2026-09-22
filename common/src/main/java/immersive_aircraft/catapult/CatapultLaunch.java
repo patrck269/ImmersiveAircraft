@@ -105,6 +105,23 @@ public final class CatapultLaunch {
         return horizontalSpeed < FORWARD * 0.25;
     }
 
+    /**
+     * Client lerpTo uses a 10-tick world-space blend toward the last server
+     * packet. On a hard-accelerating ship that packet is already stale, so a
+     * pad-locked or Eureka-welded plane must snap (skip lerp). Local control
+     * already skips interpolation.
+     */
+    public static boolean shouldLerpToServerPose(
+            boolean padLocked,
+            boolean landedOnShip,
+            boolean locallyControlled
+    ) {
+        if (locallyControlled || padLocked || landedOnShip) {
+            return false;
+        }
+        return true;
+    }
+
     /** Column-major 3x4 affine: x' = m0*x + m1*y + m2*z + m3, etc. */
     public static double[] identityMatrix() {
         return new double[] {

@@ -16,6 +16,8 @@ sourceSets {
         java {
             srcDir '../common/src/main/java'
             include 'immersive_aircraft/catapult/CatapultLaunch.java'
+            include 'immersive_aircraft/emc/FireworkEmcIdentity.java'
+            include 'immersive_aircraft/inventory/VehicleBreakPolicy.java'
         }
     }
 }

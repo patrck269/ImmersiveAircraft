@@ -104,6 +104,30 @@ class CatapultLaunchTest {
     }
 
     @Test
+    void padLockedOrWeldedPlaneDoesNotLerpToStaleServerPose() {
+        assertFalse(
+                CatapultLaunch.shouldLerpToServerPose(true, false, false),
+                "pad lock must skip 10-tick lerp or heavy accel desyncs client/server"
+        );
+        assertFalse(
+                CatapultLaunch.shouldLerpToServerPose(false, true, false),
+                "Eureka landed weld must skip lerp"
+        );
+        assertFalse(
+                CatapultLaunch.shouldLerpToServerPose(false, false, true),
+                "local pilot already skips interpolation"
+        );
+        assertTrue(
+                CatapultLaunch.shouldLerpToServerPose(false, false, false),
+                "free remote planes still interpolate"
+        );
+        assertTrue(
+                CatapultLaunch.shouldLerpToServerPose(false, false, false) &&
+                        !CatapultLaunch.shouldLerpToServerPose(true, false, false)
+        );
+    }
+
+    @Test
     void risingEdgeFiresOnceThenCoolsDown() {
         assertTrue(CatapultLaunch.shouldFire(true, false, 0));
         assertFalse(CatapultLaunch.shouldFire(true, true, 0), "held signal must not re-fire");
