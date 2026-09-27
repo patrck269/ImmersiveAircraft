@@ -68,12 +68,38 @@ public final class DeckPose {
     }
 
     /**
-     * Heading on the deck, sitting flat. Pitch and roll stay 0 in ship space so a
-     * banked deck does not get cancelled back to world-level.
+     * Heading on the deck, sitting flat. Pitch and roll stay 0 in ship space.
+     * The deck yaw is the heading whose forward, carried by the ship, matches
+     * {@code worldYawDeg} on the horizontal. It is not world yaw minus the
+     * folded euler yaw of the ship: that yaw only spans ±90° and inverts the
+     * aircraft once the ship yaws past 90° while pitched or rolled.
      */
     public static double[] deckFlatRest(double[] shipRot, double worldYawDeg) {
-        double shipYaw = extractIa(shipRot)[0];
-        return new double[] { wrap(worldYawDeg - shipYaw), 0.0, 0.0 };
+        double yaw = Math.toRadians(worldYawDeg);
+        double dx = -Math.sin(yaw);
+        double dz = Math.cos(yaw);
+        double c0x = shipRot[0];
+        double c0z = shipRot[6];
+        double c2x = shipRot[2];
+        double c2z = shipRot[8];
+        double ax = c2x;
+        double az = c2z;
+        double bx = -c0x;
+        double bz = -c0z;
+        double p = ax * dz - az * dx;
+        double q = bx * dz - bz * dx;
+        if (p * p + q * q < 1.0e-12) {
+            return new double[] { wrap(worldYawDeg), 0.0, 0.0 };
+        }
+        double d = Math.atan2(p, -q);
+        double sd = Math.sin(d);
+        double cd = Math.cos(d);
+        double hx = cd * ax + sd * bx;
+        double hz = cd * az + sd * bz;
+        if (hx * dx + hz * dz < 0.0) {
+            d += Math.PI;
+        }
+        return new double[] { wrap(Math.toDegrees(d)), 0.0, 0.0 };
     }
 
     /** Stick roll must not run for the remote on-deck view; it writes world roll 0. */
@@ -99,49 +125,31 @@ public final class DeckPose {
         return mul(mul(rotY(Math.toRadians(-yawDeg)), rotX(Math.toRadians(pitchDeg))), rotZ(Math.toRadians(rollDeg)));
     }
 
+    /**
+     * Yaw, pitch, roll whose {@link #iaRotation} rebuilds {@code m}.
+     * Pitch stays in ±90°. An asin yaw only spans ±90° and, once the ship yaws
+     * past that while pitched or rolled, rebuilds a pose whose up is opposite
+     * the deck.
+     */
     static double[] extractIa(double[] m) {
-        double[] q = matToQuat(m);
-        double w = q[0], x = q[1], y = q[2], z = q[3];
-        double pitch = Math.atan2(2.0 * (y * z + w * x), w * w - x * x - y * y + z * z);
-        double yaw = Math.asin(clamp(-2.0 * (x * z - w * y), -1.0, 1.0));
-        double roll = Math.atan2(2.0 * (x * y + w * z), w * w + x * x - y * y - z * z);
+        double cp = Math.hypot(m[3], m[4]);
+        double pitch;
+        double roll;
+        double yaw;
+        if (cp > 1.0e-8) {
+            pitch = Math.atan2(-m[5], cp);
+            roll = Math.atan2(m[3], m[4]);
+            yaw = Math.atan2(m[2], m[8]);
+        } else {
+            pitch = Math.atan2(-m[5], cp);
+            roll = 0.0;
+            yaw = -m[5] >= 0.0 ? Math.atan2(m[1], m[0]) : Math.atan2(-m[1], m[0]);
+        }
         return new double[] {
                 wrap(-Math.toDegrees(yaw)),
                 wrap(Math.toDegrees(pitch)),
                 wrap(Math.toDegrees(roll))
         };
-    }
-
-    private static double[] matToQuat(double[] m) {
-        double trace = m[0] + m[4] + m[8];
-        double w, x, y, z;
-        if (trace > 0.0) {
-            double s = Math.sqrt(trace + 1.0) * 2.0;
-            w = 0.25 * s;
-            x = (m[7] - m[5]) / s;
-            y = (m[2] - m[6]) / s;
-            z = (m[3] - m[1]) / s;
-        } else if (m[0] > m[4] && m[0] > m[8]) {
-            double s = Math.sqrt(1.0 + m[0] - m[4] - m[8]) * 2.0;
-            w = (m[7] - m[5]) / s;
-            x = 0.25 * s;
-            y = (m[1] + m[3]) / s;
-            z = (m[2] + m[6]) / s;
-        } else if (m[4] > m[8]) {
-            double s = Math.sqrt(1.0 + m[4] - m[0] - m[8]) * 2.0;
-            w = (m[2] - m[6]) / s;
-            x = (m[1] + m[3]) / s;
-            y = 0.25 * s;
-            z = (m[5] + m[7]) / s;
-        } else {
-            double s = Math.sqrt(1.0 + m[8] - m[0] - m[4]) * 2.0;
-            w = (m[3] - m[1]) / s;
-            x = (m[2] + m[6]) / s;
-            y = (m[5] + m[7]) / s;
-            z = 0.25 * s;
-        }
-        double n = Math.sqrt(w * w + x * x + y * y + z * z);
-        return new double[] {w / n, x / n, y / n, z / n};
     }
 
     private static double[] rotX(double a) {
@@ -171,10 +179,6 @@ public final class DeckPose {
 
     private static double[] transpose(double[] a) {
         return new double[] {a[0], a[3], a[6], a[1], a[4], a[7], a[2], a[5], a[8]};
-    }
-
-    private static double clamp(double v, double lo, double hi) {
-        return Math.max(lo, Math.min(hi, v));
     }
 
     private static double wrap(double angle) {

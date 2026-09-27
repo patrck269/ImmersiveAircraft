@@ -67,6 +67,11 @@ class DeckPoseTest {
         double[] pitchedObserver = DeckPose.remoteObserverPose(true, true, true, false, pitched, 0.0, 0.0, 0.0);
         assertEquals(shipPitch[1], pitchedObserver[1], 1.0, "observer pitch tracks a pitched deck");
         assertTrue(Math.abs(pitchedObserver[1]) > 20.0);
+        double[] yawed = mul(rotY(Math.toRadians(-100.0)), rotX(Math.toRadians(70.0)));
+        assertDeckFlatHeading(yawed, 25.0);
+        double[] yawedRolled = mul(rotY(Math.toRadians(-120.0)), rotZ(Math.toRadians(40.0)));
+        assertDeckFlatHeading(yawedRolled, 15.0);
+
         assertNull(DeckPose.remoteObserverPose(false, true, true, false, bank, 0.0, 0.0, 0.0),
                 "the dedicated server must not overwrite the pilot pose");
         assertNull(DeckPose.remoteObserverPose(true, true, true, true, bank, 0.0, 0.0, 0.0),
@@ -87,6 +92,64 @@ class DeckPoseTest {
         assertTrue(vehicle.contains("DeckPose.deckFlatRest"));
         assertTrue(vehicle.contains("level().isClientSide()"));
         assertFalse(vehicle.contains("deckRelative(ship, serverYRot"));
+    }
+
+    /**
+     * Ship yawed past 90° and pitched or rolled. The deck-flat rest is solved from
+     * the true horizontal heading, then the observer pose must match composing that
+     * real deck yaw. A folded euler subtraction inverts the aircraft (up opposite
+     * the ship) on these poses.
+     */
+    private static void assertDeckFlatHeading(double[] ship, double realDeckYaw) {
+        double[] trueRot = mul(ship, DeckPose.iaRotation(realDeckYaw, 0.0, 0.0));
+        double worldYaw = Math.toDegrees(Math.atan2(-trueRot[2], trueRot[8]));
+        double[] rest = DeckPose.deckFlatRest(ship, worldYaw);
+        assertEquals(0.0, rest[1], 0.0, "deck-flat rest pitch");
+        assertEquals(0.0, rest[2], 0.0, "deck-flat rest roll");
+        double[] solved = mul(ship, DeckPose.iaRotation(rest[0], 0.0, 0.0));
+        assertMatrixNear(trueRot, solved);
+
+        double upDot = solved[1] * ship[1] + solved[4] * ship[4] + solved[7] * ship[7];
+        assertTrue(upDot > 0.99, "aircraft up must stay parallel to the ship, dot=" + upDot);
+
+        double[] observer = DeckPose.remoteObserverPose(
+                true, true, true, false, ship, rest[0], rest[1], rest[2]
+        );
+        double[] expected = DeckPose.compose(ship, realDeckYaw, 0.0, 0.0);
+        assertAngleNear(expected[0], observer[0], 2.0);
+        assertAngleNear(expected[1], observer[1], 2.0);
+        assertAngleNear(expected[2], observer[2], 2.0);
+
+        double[] rendered = DeckPose.iaRotation(observer[0], observer[1], observer[2]);
+        assertMatrixNear(trueRot, rendered);
+
+        double[] deck = DeckPose.deckRelative(ship, observer[0], observer[1], observer[2]);
+        assertAngleNear(realDeckYaw, deck[0], 3.0);
+        assertTrue(Math.abs(wrapDiff(0.0, deck[1])) < 3.0, "deck pitch " + deck[1]);
+        assertTrue(Math.abs(wrapDiff(0.0, deck[2])) < 3.0,
+                "deck-relative roll stays near 0, not inverted: " + deck[2]);
+    }
+
+    private static void assertMatrixNear(double[] expected, double[] actual) {
+        for (int i = 0; i < 9; i++) {
+            assertEquals(expected[i], actual[i], 1.0e-4, "element " + i);
+        }
+    }
+
+    private static void assertAngleNear(double expected, double actual, double tol) {
+        double d = wrapDiff(expected, actual);
+        assertTrue(Math.abs(d) <= tol, "expected " + expected + " got " + actual + " (delta " + d + ")");
+    }
+
+    private static double wrapDiff(double expected, double actual) {
+        double d = (expected - actual) % 360.0;
+        if (d > 180.0) {
+            d -= 360.0;
+        }
+        if (d <= -180.0) {
+            d += 360.0;
+        }
+        return d;
     }
 
     private static double[] rotX(double a) {
