@@ -69,8 +69,10 @@ class DeckPoseTest {
         assertTrue(Math.abs(pitchedObserver[1]) > 20.0);
         double[] yawed = mul(rotY(Math.toRadians(-100.0)), rotX(Math.toRadians(70.0)));
         assertDeckFlatHeading(yawed, 25.0);
+        assertDeckFlatHeading(mul(rotX(Math.toRadians(70.0)), rotY(Math.toRadians(-100.0))), 25.0);
         double[] yawedRolled = mul(rotY(Math.toRadians(-120.0)), rotZ(Math.toRadians(40.0)));
         assertDeckFlatHeading(yawedRolled, 15.0);
+        assertDeckFlatHeading(mul(rotZ(Math.toRadians(40.0)), rotY(Math.toRadians(-120.0))), 0.0);
 
         assertNull(DeckPose.remoteObserverPose(false, true, true, false, bank, 0.0, 0.0, 0.0),
                 "the dedicated server must not overwrite the pilot pose");
@@ -104,6 +106,7 @@ class DeckPoseTest {
         double[] trueRot = mul(ship, DeckPose.iaRotation(realDeckYaw, 0.0, 0.0));
         double worldYaw = Math.toDegrees(Math.atan2(-trueRot[2], trueRot[8]));
         double[] rest = DeckPose.deckFlatRest(ship, worldYaw);
+        assertAngleNear(realDeckYaw, rest[0], 2.0);
         assertEquals(0.0, rest[1], 0.0, "deck-flat rest pitch");
         assertEquals(0.0, rest[2], 0.0, "deck-flat rest roll");
         double[] solved = mul(ship, DeckPose.iaRotation(rest[0], 0.0, 0.0));
