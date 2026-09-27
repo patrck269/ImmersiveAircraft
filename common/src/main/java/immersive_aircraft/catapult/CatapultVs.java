@@ -1,6 +1,10 @@
 package immersive_aircraft.catapult;
 
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
@@ -13,6 +17,7 @@ import net.minecraft.world.phys.Vec3;
  */
 public final class CatapultVs {
     private static final Method SHIP_AT = vsMethod("getShipManagingPos", Level.class, double.class, double.class, double.class);
+    private static final Method SHIP_WORLD = vsMethod("getShipObjectWorld", Level.class);
     private static final Method TO_WORLD_VEC = vsMethod("toWorldCoordinates", Level.class, Vec3.class);
     private static final Method TO_WORLD_BLOCK = vsMethod("toWorldCoordinates", Level.class, BlockPos.class);
     private static final Method TRANSFORM_AABB = vsMethod("transformAabbToWorld", Level.class, AABB.class);
@@ -75,26 +80,186 @@ public final class CatapultVs {
     }
 
     public static boolean isShipAt(Level level, double x, double y, double z) {
-        try {
-            return shipAt(level, x, y, z) != null;
-        } catch (Throwable ignored) {
-            return false;
-        }
+        return worldShipAt(level, x, y, z) != null;
     }
 
     /** Row-major 3x3 of the live ship rotation at a world point, or null off-ship. */
     public static double[] shipRotationAt(Level level, double x, double y, double z) {
+        WorldShip ship = worldShipAt(level, x, y, z);
+        if (ship == null) {
+            return null;
+        }
+        if (ship.rotation == null) {
+            ship.rotation = readShipToWorld(ship.ship);
+        }
+        return ship.rotation;
+    }
+
+    private static final class WorldShip {
+        final Object ship;
+        final double minX, minY, minZ, maxX, maxY, maxZ;
+        double[] rotation;
+
+        WorldShip(Object ship, double minX, double minY, double minZ, double maxX, double maxY, double maxZ) {
+            this.ship = ship;
+            this.minX = minX;
+            this.minY = minY;
+            this.minZ = minZ;
+            this.maxX = maxX;
+            this.maxY = maxY;
+            this.maxZ = maxZ;
+        }
+
+        boolean contains(double x, double y, double z) {
+            return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
+        }
+    }
+
+    private static final class WorldSnap {
+        final Level level;
+        final long tick;
+        final Map<Long, List<WorldShip>> byChunk;
+        final List<WorldShip> overflow;
+
+        WorldSnap(Level level, long tick, Map<Long, List<WorldShip>> byChunk, List<WorldShip> overflow) {
+            this.level = level;
+            this.tick = tick;
+            this.byChunk = byChunk;
+            this.overflow = overflow;
+        }
+    }
+
+    private static WorldSnap worldSnap;
+    private static Method allShips;
+    private static Method worldAabb;
+    private static Method aabbMinX, aabbMinY, aabbMinZ, aabbMaxX, aabbMaxY, aabbMaxZ;
+    private static Method shipToWorld;
+    private static final Method[] MATRIX = new Method[9];
+
+    /**
+     * Entity positions are world-space. getShipManagingPos only sees shipyard
+     * chunks, so a deck in the world would miss. One AABB index per tick,
+     * not a ship search per aircraft per call.
+     */
+    private static WorldShip worldShipAt(Level level, double x, double y, double z) {
+        WorldSnap snap = worldShips(level);
+        if (snap == null) {
+            return null;
+        }
+        int cx = ((int) Math.floor(x)) >> 4;
+        int cz = ((int) Math.floor(z)) >> 4;
+        List<WorldShip> listed = snap.byChunk.get(chunkKey(cx, cz));
+        if (listed != null) {
+            for (int i = 0; i < listed.size(); i++) {
+                WorldShip ship = listed.get(i);
+                if (ship.contains(x, y, z)) {
+                    return ship;
+                }
+            }
+        }
+        for (int i = 0; i < snap.overflow.size(); i++) {
+            WorldShip ship = snap.overflow.get(i);
+            if (ship.contains(x, y, z)) {
+                return ship;
+            }
+        }
+        return null;
+    }
+
+    private static long chunkKey(int cx, int cz) {
+        return (((long) cx) << 32) ^ (cz & 0xffffffffL);
+    }
+
+    private static WorldSnap worldShips(Level level) {
+        long tick = level.getGameTime();
+        WorldSnap current = worldSnap;
+        if (current != null && current.level == level && current.tick == tick) {
+            return current;
+        }
+        WorldSnap built = buildWorldSnap(level, tick);
+        worldSnap = built;
+        return built;
+    }
+
+    private static WorldSnap buildWorldSnap(Level level, long tick) {
+        Map<Long, List<WorldShip>> buckets = new HashMap<>();
+        List<WorldShip> overflow = new ArrayList<>();
         try {
-            Object ship = shipAt(level, x, y, z);
-            if (ship == null) {
+            if (SHIP_WORLD == null) {
+                return new WorldSnap(level, tick, buckets, overflow);
+            }
+            Object world = SHIP_WORLD.invoke(null, level);
+            if (world == null) {
+                return new WorldSnap(level, tick, buckets, overflow);
+            }
+            if (allShips == null) {
+                allShips = world.getClass().getMethod("getAllShips");
+            }
+            Object data = allShips.invoke(world);
+            if (!(data instanceof Iterable<?> ships)) {
+                return new WorldSnap(level, tick, buckets, overflow);
+            }
+            for (Object ship : ships) {
+                if (ship == null) {
+                    continue;
+                }
+                if (worldAabb == null) {
+                    worldAabb = ship.getClass().getMethod("getWorldAABB");
+                }
+                Object box = worldAabb.invoke(ship);
+                if (box == null) {
+                    continue;
+                }
+                if (aabbMinX == null) {
+                    aabbMinX = box.getClass().getMethod("minX");
+                    aabbMinY = box.getClass().getMethod("minY");
+                    aabbMinZ = box.getClass().getMethod("minZ");
+                    aabbMaxX = box.getClass().getMethod("maxX");
+                    aabbMaxY = box.getClass().getMethod("maxY");
+                    aabbMaxZ = box.getClass().getMethod("maxZ");
+                }
+                double minX = ((Number) aabbMinX.invoke(box)).doubleValue() - 0.5;
+                double minY = ((Number) aabbMinY.invoke(box)).doubleValue() - 0.5;
+                double minZ = ((Number) aabbMinZ.invoke(box)).doubleValue() - 0.5;
+                double maxX = ((Number) aabbMaxX.invoke(box)).doubleValue() + 0.5;
+                double maxY = ((Number) aabbMaxY.invoke(box)).doubleValue() + 0.5;
+                double maxZ = ((Number) aabbMaxZ.invoke(box)).doubleValue() + 0.5;
+                WorldShip snap = new WorldShip(ship, minX, minY, minZ, maxX, maxY, maxZ);
+                int minCx = ((int) Math.floor(minX)) >> 4;
+                int maxCx = ((int) Math.floor(maxX)) >> 4;
+                int minCz = ((int) Math.floor(minZ)) >> 4;
+                int maxCz = ((int) Math.floor(maxZ)) >> 4;
+                if (maxCx - minCx > 48 || maxCz - minCz > 48) {
+                    overflow.add(snap);
+                    continue;
+                }
+                for (int cx = minCx; cx <= maxCx; cx++) {
+                    for (int cz = minCz; cz <= maxCz; cz++) {
+                        buckets.computeIfAbsent(chunkKey(cx, cz), key -> new ArrayList<>(1)).add(snap);
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return new WorldSnap(level, tick, buckets, overflow);
+    }
+
+    private static double[] readShipToWorld(Object ship) {
+        try {
+            if (shipToWorld == null) {
+                shipToWorld = ship.getClass().getMethod("getShipToWorld");
+            }
+            Object matrix = shipToWorld.invoke(ship);
+            if (matrix == null) {
                 return null;
             }
-            Object transform = ship.getClass().getMethod("getTransform").invoke(ship);
-            Object matrix = transform.getClass().getMethod("getShipToWorld").invoke(transform);
-            double[] m = new double[9];
             String[] names = {"m00", "m01", "m02", "m10", "m11", "m12", "m20", "m21", "m22"};
+            double[] m = new double[9];
             for (int i = 0; i < names.length; i++) {
-                m[i] = ((Number) matrix.getClass().getMethod(names[i]).invoke(matrix)).doubleValue();
+                if (MATRIX[i] == null) {
+                    MATRIX[i] = matrix.getClass().getMethod(names[i]);
+                }
+                m[i] = ((Number) MATRIX[i].invoke(matrix)).doubleValue();
             }
             return m;
         } catch (Throwable ignored) {
