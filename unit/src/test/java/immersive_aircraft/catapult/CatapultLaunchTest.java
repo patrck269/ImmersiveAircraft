@@ -2,6 +2,9 @@ package immersive_aircraft.catapult;
 
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -198,5 +201,75 @@ class CatapultLaunchTest {
         assertEquals(0.0, dir[0], 1e-9);
         assertEquals(0.0, dir[1], 1e-9);
         assertEquals(1.0, dir[2], 1e-9);
+    }
+
+    @Test
+    void fastShipDoesNotReleasePadAndRealLaunchDoes() throws Exception {
+        double ship = 5.0;
+        assertTrue(
+                CatapultLaunch.shouldHoldOnPad(0, false, ship, 0.0, 0.0, ship, 0.0, 0.0),
+                "world speed that matches the pad is the ship, not a launch"
+        );
+        assertEquals(
+                0.0,
+                CatapultLaunch.horizontalRelativeSpeed(ship, 0.0, 0.0, ship, 0.0, 0.0),
+                1e-9
+        );
+        assertTrue(
+                CatapultLaunch.shouldHoldOnPad(0, false, 0.0, 0.0, 0.0, ship, 0.0, 0.0),
+                "client pose with ~0 world speed must stay held while the ship is fast"
+        );
+        assertFalse(
+                CatapultLaunch.shouldClampDock(0, false, ship),
+                "raw world speed of several blocks/tick would release; hold must not use it"
+        );
+        assertFalse(
+                CatapultLaunch.shouldHoldOnPad(CatapultLaunch.COOLDOWN_TICKS, false, 0.0, 0.0, 0.0, ship, 0.0, 0.0),
+                "cooldown after fire must not re-clamp"
+        );
+        double[] launched = CatapultLaunch.launchVelocity(ship, 0.0, 0.0, 0.0, 1.0);
+        assertFalse(
+                CatapultLaunch.shouldHoldOnPad(
+                        0, false,
+                        launched[0], launched[1], launched[2],
+                        ship, 0.0, 0.0
+                ),
+                "forward added on top of ship speed is a real relative launch"
+        );
+        assertFalse(
+                CatapultLaunch.shouldHoldOnPad(0, false, CatapultLaunch.FORWARD, 0.0, 0.0, 0.0, 0.0, 0.0),
+                "launch off a still pad still releases"
+        );
+
+        double[] moved = CatapultLaunch.translationMatrix(ship, 0.0, 0.0);
+        double[] dockA = CatapultLaunch.liveDock(moved, 4, 70, 8);
+        double[] dockB = CatapultLaunch.liveDock(moved, 4, 70, 8);
+        assertEquals(dockA[0], dockB[0], 1e-9, "two live transforms of the pad must match");
+        assertEquals(dockA[1], dockB[1], 1e-9);
+        assertEquals(dockA[2], dockB[2], 1e-9);
+        assertEquals(4.5 + ship, dockA[0], 1e-6);
+        assertEquals(CatapultLaunch.dockY(70), dockA[1], 1e-9);
+
+        double[] stale = CatapultLaunch.liveDock(CatapultLaunch.identityMatrix(), 4, 70, 8);
+        double[] held = CatapultLaunch.heldFromLivePoint(dockA[0], dockA[1], dockA[2], stale, true, false);
+        assertEquals(dockA[0], held[0], 1e-9, "pad lock must not blend toward the stale packet");
+        assertEquals(dockA[1], held[1], 1e-9);
+        assertEquals(dockA[2], held[2], 1e-9);
+        double[] welded = CatapultLaunch.heldFromLivePoint(dockA[0], dockA[1], dockA[2], stale, false, true);
+        assertEquals(dockA[0], welded[0], 1e-9, "deck weld must not blend toward the stale packet");
+        double[] free = CatapultLaunch.heldFromLivePoint(dockA[0], dockA[1], dockA[2], stale, false, false);
+        assertTrue(Math.abs(free[0] - dockA[0]) > 0.1, "a free remote aircraft still lerps toward the packet");
+        assertFalse(CatapultLaunch.shouldLerpToServerPose(true, false, false));
+        assertFalse(CatapultLaunch.shouldLerpToServerPose(false, true, false));
+        assertTrue(CatapultLaunch.shouldLerpToServerPose(false, false, false));
+
+        String block = Files.readString(Path.of(
+                "..", "common", "src", "main", "java",
+                "immersive_aircraft", "block", "entity", "CatapultBlockEntity.java"
+        ));
+        assertTrue(block.contains("shouldHoldOnPad"), "server and client clamp must use the hold decision");
+        assertTrue(block.contains("heldFromLivePoint"), "both sides must place the live dock, not a stale blend");
+        assertTrue(block.contains("shipTickVelocity"));
+        assertFalse(block.contains("horizontalDistance()"), "world horizontal speed must not be the release input");
     }
 }

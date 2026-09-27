@@ -72,7 +72,7 @@ public class CatapultBlockEntity extends BlockEntity {
 
     private void clientClamp(Level level, BlockPos pos, BlockState state) {
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
-            if (!mayClamp(vehicle)) {
+            if (!mayClamp(vehicle, level, pos)) {
                 continue;
             }
             this.dockedId = vehicle.getUUID();
@@ -87,7 +87,7 @@ public class CatapultBlockEntity extends BlockEntity {
     private void maintainDock(Level level, BlockPos pos, BlockState state) {
         VehicleEntity docked = findDocked(level, pos);
         if (docked != null && onPad(docked, level, pos)) {
-            if (mayClamp(docked)) {
+            if (mayClamp(docked, level, pos)) {
                 docked.lockToPad();
                 clamp(docked, level, pos, state);
                 DOCKED.put(docked.getUUID(), this);
@@ -101,7 +101,7 @@ public class CatapultBlockEntity extends BlockEntity {
         }
         clearDock();
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
-            if (!mayClamp(vehicle)) {
+            if (!mayClamp(vehicle, level, pos)) {
                 continue;
             }
             this.dockedId = vehicle.getUUID();
@@ -139,11 +139,14 @@ public class CatapultBlockEntity extends BlockEntity {
         return true;
     }
 
-    private boolean mayClamp(VehicleEntity vehicle) {
-        return CatapultLaunch.shouldClampDock(
+    private boolean mayClamp(VehicleEntity vehicle, Level level, BlockPos pos) {
+        Vec3 vel = vehicle.getDeltaMovement();
+        Vec3 ship = CatapultVs.shipTickVelocity(level, pos);
+        return CatapultLaunch.shouldHoldOnPad(
                 this.cooldown,
                 vehicle.getTags().contains(CatapultLaunch.LAUNCH_TAG),
-                vehicle.getDeltaMovement().horizontalDistance()
+                vel.x, vel.y, vel.z,
+                ship.x, ship.y, ship.z
         );
     }
 
@@ -199,9 +202,15 @@ public class CatapultBlockEntity extends BlockEntity {
         Direction facing = state.getValue(CatapultBlock.FACING);
         Vec3 dock = CatapultVs.worldDock(level, pos);
         Vec3 dir = CatapultVs.worldFacing(level, pos, facing);
+        double[] held = CatapultLaunch.heldFromLivePoint(
+                dock.x, dock.y, dock.z,
+                new double[] {vehicle.getX(), vehicle.getY(), vehicle.getZ()},
+                true,
+                vehicle.getTags().contains("eureka_landed_on_ship")
+        );
         vehicle.lockToPad();
         vehicle.cancelInterpolation();
-        vehicle.setPos(dock.x, dock.y, dock.z);
+        vehicle.setPos(held[0], held[1], held[2]);
         vehicle.setYRot((float) Math.toDegrees(Math.atan2(-dir.x, dir.z)));
         vehicle.setDeltaMovement(Vec3.ZERO);
         vehicle.setOnGround(true);

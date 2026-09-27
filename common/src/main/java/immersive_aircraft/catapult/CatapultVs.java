@@ -28,6 +28,32 @@ public final class CatapultVs {
         return toWorldCoordinates(level, local);
     }
 
+    /**
+     * Ship velocity in blocks/tick. VS reports blocks/second; catapult speeds
+     * are blocks/tick (the same 0.05 factor VS uses for entity drag).
+     */
+    public static Vec3 shipTickVelocity(Level level, BlockPos pad) {
+        try {
+            Object ship = shipAt(level, pad);
+            if (ship == null) {
+                return Vec3.ZERO;
+            }
+            Object vel = ship.getClass().getMethod("getVelocity").invoke(ship);
+            double x = ((Number) vel.getClass().getMethod("x").invoke(vel)).doubleValue();
+            double y = ((Number) vel.getClass().getMethod("y").invoke(vel)).doubleValue();
+            double z = ((Number) vel.getClass().getMethod("z").invoke(vel)).doubleValue();
+            return new Vec3(x, y, z).scale(0.05);
+        } catch (Throwable ignored) {
+            return Vec3.ZERO;
+        }
+    }
+
+    private static Object shipAt(Level level, BlockPos pad) throws Exception {
+        Class<?> kt = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt");
+        return kt.getMethod("getShipManagingPos", Level.class, double.class, double.class, double.class)
+                .invoke(null, level, pad.getX() + 0.5, pad.getY() + 0.5, pad.getZ() + 0.5);
+    }
+
     public static Vec3 worldFacing(Level level, BlockPos pad, Direction facing) {
         Vec3 origin = toWorldCoordinates(level, Vec3.atCenterOf(pad));
         Vec3 tip = toWorldCoordinates(level, Vec3.atCenterOf(pad).add(facing.getStepX(), 0.0, facing.getStepZ()));

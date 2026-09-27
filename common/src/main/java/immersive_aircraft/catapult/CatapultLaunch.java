@@ -12,6 +12,11 @@ public final class CatapultLaunch {
     public static final double UP = 0.2;
     public static final int COOLDOWN_TICKS = 10;
     public static final String LAUNCH_TAG = "ia_catapult_launch";
+    /**
+     * Speeds below this (blocks/tick) are not a launch. A ship can add several
+     * blocks/tick of world speed; that must not be treated as leaving the pad.
+     */
+    public static final double CARRIED_WITH_SHIP = 0.35;
     /** Extra height above the collision top so a vehicle with minY = HEIGHT is on-pad. */
     public static final double DETECT_ABOVE = 1.0;
 
@@ -103,6 +108,67 @@ public final class CatapultLaunch {
 
     public static boolean shouldClearLaunchTag(double horizontalSpeed) {
         return horizontalSpeed < FORWARD * 0.25;
+    }
+
+    /** Horizontal speed of {@code v} relative to the pad, in blocks/tick. */
+    public static double horizontalRelativeSpeed(
+            double vx, double vy, double vz,
+            double padVx, double padVy, double padVz
+    ) {
+        double dx = vx - padVx;
+        double dz = vz - padVz;
+        return Math.hypot(dx, dz);
+    }
+
+    /**
+     * Hold a docked aircraft. World speed that matches the pad (the ship) does
+     * not release. A client pose with ~0 world speed while the ship is fast is
+     * not a launch either. Cooldown and a real relative launch do release.
+     */
+    public static boolean shouldHoldOnPad(
+            int cooldownRemaining,
+            boolean launchTagged,
+            double vx, double vy, double vz,
+            double padVx, double padVy, double padVz
+    ) {
+        if (cooldownRemaining > 0) {
+            return false;
+        }
+        double world = Math.hypot(vx, vz);
+        if (world <= CARRIED_WITH_SHIP) {
+            return true;
+        }
+        double relative = horizontalRelativeSpeed(vx, vy, vz, padVx, padVy, padVz);
+        if (relative <= CARRIED_WITH_SHIP) {
+            return true;
+        }
+        return shouldClampDock(cooldownRemaining, launchTagged, relative);
+    }
+
+    /** Pad center and dock top through the live ship transform. */
+    public static double[] liveDock(double[] shipToWorld, int blockX, int blockY, int blockZ) {
+        return transformPoint(blockX + 0.5, dockY(blockY), blockZ + 0.5, shipToWorld);
+    }
+
+    /**
+     * Pose while the aircraft is held: the live dock, not a 10-tick blend
+     * toward a stale world packet. A free remote aircraft still blends.
+     */
+    public static double[] heldFromLivePoint(
+            double liveX, double liveY, double liveZ,
+            double[] staleWorld,
+            boolean padLocked,
+            boolean landedOnShip
+    ) {
+        if (!shouldLerpToServerPose(padLocked, landedOnShip, false)) {
+            return new double[] {liveX, liveY, liveZ};
+        }
+        double step = 1.0 / 10.0;
+        return new double[] {
+                liveX + (staleWorld[0] - liveX) * step,
+                liveY + (staleWorld[1] - liveY) * step,
+                liveZ + (staleWorld[2] - liveZ) * step
+        };
     }
 
     /**
