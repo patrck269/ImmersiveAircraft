@@ -52,23 +52,24 @@ class DeckPoseTest {
         );
 
         double[] bank = rotZ(Math.toRadians(80.0));
-        double[] rest = DeckPose.deckFlatRest(bank, 10.0);
-        assertEquals(0.0, rest[1], 1.0e-6, "deck-flat rest pitch");
-        assertEquals(0.0, rest[2], 1.0e-6, "deck-flat rest roll");
-        double[] observer = DeckPose.remoteObserverPose(true, true, true, false, bank, rest[0], rest[1], rest[2]);
-        double[] composed = DeckPose.compose(bank, rest[0], rest[1], rest[2]);
-        assertEquals(composed[0], observer[0], 1.0e-6);
-        assertEquals(composed[1], observer[1], 1.0e-6);
-        assertEquals(composed[2], observer[2], 1.0e-6);
-        assertTrue(Math.abs(observer[1]) > 20.0 || Math.abs(observer[2]) > 20.0,
-                "an 80 degree deck bank must not come out world-level");
-        double[] worldLevel = DeckPose.compose(bank, DeckPose.deckRelative(bank, 0, 0, 0)[0],
-                DeckPose.deckRelative(bank, 0, 0, 0)[1], DeckPose.deckRelative(bank, 0, 0, 0)[2]);
-        assertTrue(Math.abs(observer[1] - worldLevel[1]) > 20.0 || Math.abs(observer[2] - worldLevel[2]) > 20.0,
-                "inverting a zero world roll is the backflip pose");
-        assertNull(DeckPose.remoteObserverPose(false, true, true, false, bank, rest[0], rest[1], rest[2]),
+        double[] shipFlat = DeckPose.compose(bank, 0.0, 0.0, 0.0);
+        assertTrue(Math.abs(shipFlat[2]) > 70.0, "fixture bank is a world roll, not pitch");
+        double[] observer = DeckPose.remoteObserverPose(true, true, true, false, bank, 0.0, 0.0, 0.0);
+        assertEquals(shipFlat[0], observer[0], 1.0, "observer yaw tracks the ship");
+        assertEquals(shipFlat[1], observer[1], 1.0, "observer pitch tracks the ship");
+        assertEquals(shipFlat[2], observer[2], 1.0, "observer roll tracks the ship");
+        assertTrue(Math.abs(observer[2]) > 70.0, "an 80 degree deck bank must not come out world roll 0");
+        double[] rollSlam = DeckPose.worldGroundStep(observer[1], observer[2], 0.0);
+        assertTrue(Math.abs(rollSlam[1]) < Math.abs(observer[2]),
+                "the world-space roll slam pulls toward 0 and is not the deck pose");
+        double[] pitched = rotX(Math.toRadians(35.0));
+        double[] shipPitch = DeckPose.compose(pitched, 0.0, 0.0, 0.0);
+        double[] pitchedObserver = DeckPose.remoteObserverPose(true, true, true, false, pitched, 0.0, 0.0, 0.0);
+        assertEquals(shipPitch[1], pitchedObserver[1], 1.0, "observer pitch tracks a pitched deck");
+        assertTrue(Math.abs(pitchedObserver[1]) > 20.0);
+        assertNull(DeckPose.remoteObserverPose(false, true, true, false, bank, 0.0, 0.0, 0.0),
                 "the dedicated server must not overwrite the pilot pose");
-        assertNull(DeckPose.remoteObserverPose(true, true, true, true, bank, rest[0], rest[1], rest[2]),
+        assertNull(DeckPose.remoteObserverPose(true, true, true, true, bank, 0.0, 0.0, 0.0),
                 "the pilot keeps local control");
         assertFalse(DeckPose.applyControlRoll(false, true, true, false),
                 "remote on-deck must not write stick roll 0");

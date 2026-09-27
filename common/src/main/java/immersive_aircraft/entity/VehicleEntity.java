@@ -607,7 +607,9 @@ public abstract class VehicleEntity extends Entity {
                 isOnShipDeck()
         )) {
             interpolationSteps = 0;
-            if (DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
+            if (level().isClientSide()
+                    && !isControlledByLocalInstance()
+                    && DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), false)) {
                 applyRemoteDeckPose();
             }
             return;
