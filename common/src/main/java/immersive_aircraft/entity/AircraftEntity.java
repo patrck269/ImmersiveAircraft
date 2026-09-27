@@ -72,9 +72,10 @@ public abstract class AircraftEntity extends EngineVehicle {
     public void tick() {
         // rolling interpolation
         prevRoll = roll;
-        if (onGround() && !DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
+        boolean remoteDeck = DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance());
+        if (onGround() && !remoteDeck) {
             setZRot((float) DeckPose.worldGroundStep(getXRot(), roll, 0.0)[1]);
-        } else if (!onGround()) {
+        } else if (DeckPose.applyControlRoll(onGround(), isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
             setZRot(-pressingInterpolatedX.getSmooth() * getProperties().get(VehicleStat.ROLL_FACTOR) * (1.0f - inWaterLevel));
         }
 

@@ -107,8 +107,6 @@ public abstract class VehicleEntity extends Entity {
     private double remoteDeckYaw;
     private double remoteDeckPitch;
     private double remoteDeckRoll;
-    private double remoteDeckPacketYaw = Double.NaN;
-    private double remoteDeckPacketPitch = Double.NaN;
 
     public double lastX;
     public double lastY;
@@ -638,29 +636,39 @@ public abstract class VehicleEntity extends Entity {
     }
 
     /**
-     * Observer pose: live ship rotation composed with the deck-relative
-     * orientation. Recapture only when the server packet's world angles change,
-     * so a tilt of the ship between packets rotates the aircraft with the deck.
+     * Non-pilot client only. Deck pitch and roll stay the on-deck rest (flat is
+     * 0, 0 in ship space). serverYRot is not used: it is never set on the
+     * dedicated server, and a world roll of 0 is not the pilot's roll.
      */
     private void applyRemoteDeckPose() {
+        if (!level().isClientSide()) {
+            return;
+        }
         double[] ship = CatapultVs.shipRotationAt(level(), getX(), getY(), getZ());
         if (ship == null) {
             remoteDeckReady = false;
             return;
         }
-        boolean packetChanged = remoteDeckPacketYaw != serverYRot || remoteDeckPacketPitch != serverXRot;
-        if (!remoteDeckReady || packetChanged) {
-            double[] rel = DeckPose.deckRelative(ship, serverYRot, serverXRot, getRoll());
-            remoteDeckYaw = rel[0];
-            remoteDeckPitch = rel[1];
-            if (!remoteDeckReady) {
-                remoteDeckRoll = rel[2];
-            }
+        if (!remoteDeckReady) {
+            double[] rest = DeckPose.deckFlatRest(ship, getYRot());
+            remoteDeckYaw = rest[0];
+            remoteDeckPitch = rest[1];
+            remoteDeckRoll = rest[2];
             remoteDeckReady = true;
-            remoteDeckPacketYaw = serverYRot;
-            remoteDeckPacketPitch = serverXRot;
         }
-        double[] world = DeckPose.compose(ship, remoteDeckYaw, remoteDeckPitch, remoteDeckRoll);
+        double[] world = DeckPose.remoteObserverPose(
+                true,
+                isVehicle(),
+                isOnShipDeck(),
+                isControlledByLocalInstance(),
+                ship,
+                remoteDeckYaw,
+                remoteDeckPitch,
+                remoteDeckRoll
+        );
+        if (world == null) {
+            return;
+        }
         setYRot((float) world[0]);
         setXRot((float) world[1]);
         setZRot((float) world[2]);

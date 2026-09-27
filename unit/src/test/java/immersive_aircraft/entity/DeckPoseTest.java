@@ -7,6 +7,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DeckPoseTest {
@@ -50,6 +51,28 @@ class DeckPoseTest {
                 "world-space landing pitch/roll is not the deck-composed pose"
         );
 
+        double[] bank = rotZ(Math.toRadians(80.0));
+        double[] rest = DeckPose.deckFlatRest(bank, 10.0);
+        assertEquals(0.0, rest[1], 1.0e-6, "deck-flat rest pitch");
+        assertEquals(0.0, rest[2], 1.0e-6, "deck-flat rest roll");
+        double[] observer = DeckPose.remoteObserverPose(true, true, true, false, bank, rest[0], rest[1], rest[2]);
+        double[] composed = DeckPose.compose(bank, rest[0], rest[1], rest[2]);
+        assertEquals(composed[0], observer[0], 1.0e-6);
+        assertEquals(composed[1], observer[1], 1.0e-6);
+        assertEquals(composed[2], observer[2], 1.0e-6);
+        assertTrue(Math.abs(observer[1]) > 20.0 || Math.abs(observer[2]) > 20.0,
+                "an 80 degree deck bank must not come out world-level");
+        double[] worldLevel = DeckPose.compose(bank, DeckPose.deckRelative(bank, 0, 0, 0)[0],
+                DeckPose.deckRelative(bank, 0, 0, 0)[1], DeckPose.deckRelative(bank, 0, 0, 0)[2]);
+        assertTrue(Math.abs(observer[1] - worldLevel[1]) > 20.0 || Math.abs(observer[2] - worldLevel[2]) > 20.0,
+                "inverting a zero world roll is the backflip pose");
+        assertNull(DeckPose.remoteObserverPose(false, true, true, false, bank, rest[0], rest[1], rest[2]),
+                "the dedicated server must not overwrite the pilot pose");
+        assertNull(DeckPose.remoteObserverPose(true, true, true, true, bank, rest[0], rest[1], rest[2]),
+                "the pilot keeps local control");
+        assertFalse(DeckPose.applyControlRoll(false, true, true, false),
+                "remote on-deck must not write stick roll 0");
+
         String aircraft = Files.readString(Path.of(
                 "..", "common", "src", "main", "java", "immersive_aircraft", "entity", "AircraftEntity.java"
         ));
@@ -57,14 +80,22 @@ class DeckPoseTest {
                 "..", "common", "src", "main", "java", "immersive_aircraft", "entity", "VehicleEntity.java"
         ));
         assertTrue(aircraft.contains("DeckPose.skipWorldGroundOrientation"));
+        assertTrue(aircraft.contains("DeckPose.applyControlRoll"));
         assertTrue(aircraft.contains("DeckPose.worldGroundStep"));
-        assertTrue(vehicle.contains("DeckPose.compose"));
-        assertTrue(vehicle.contains("DeckPose.shouldLerpToServerPose"));
+        assertTrue(vehicle.contains("DeckPose.remoteObserverPose"));
+        assertTrue(vehicle.contains("DeckPose.deckFlatRest"));
+        assertTrue(vehicle.contains("level().isClientSide()"));
+        assertFalse(vehicle.contains("deckRelative(ship, serverYRot"));
     }
 
     private static double[] rotX(double a) {
         double c = Math.cos(a), s = Math.sin(a);
         return new double[] {1, 0, 0, 0, c, -s, 0, s, c};
+    }
+
+    private static double[] rotZ(double a) {
+        double c = Math.cos(a), s = Math.sin(a);
+        return new double[] {c, -s, 0, s, c, 0, 0, 0, 1};
     }
 
     private static double[] rotY(double a) {

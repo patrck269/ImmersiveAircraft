@@ -42,6 +42,48 @@ public final class DeckPose {
         };
     }
 
+    /**
+     * World yaw, pitch, roll for a non-pilot client. Null on the dedicated server,
+     * for the pilot, and off the deck — those sides must not overwrite rotation.
+     * The angles are the deck-relative rest (flat on the deck is pitch 0, roll 0),
+     * not world angles and not a roll that was zeroed in world space.
+     */
+    public static double[] remoteObserverPose(
+            boolean clientSide,
+            boolean occupied,
+            boolean onShipDeck,
+            boolean locallyControlled,
+            double[] shipRot,
+            double deckYawDeg,
+            double deckPitchDeg,
+            double deckRollDeg
+    ) {
+        if (!clientSide || shipRot == null) {
+            return null;
+        }
+        if (!skipWorldGroundOrientation(occupied, onShipDeck, locallyControlled)) {
+            return null;
+        }
+        return compose(shipRot, deckYawDeg, deckPitchDeg, deckRollDeg);
+    }
+
+    /**
+     * Heading on the deck, sitting flat. Pitch and roll stay 0 in ship space so a
+     * banked deck does not get cancelled back to world-level.
+     */
+    public static double[] deckFlatRest(double[] shipRot, double worldYawDeg) {
+        double shipYaw = extractIa(shipRot)[0];
+        return new double[] { wrap(worldYawDeg - shipYaw), 0.0, 0.0 };
+    }
+
+    /** Stick roll must not run for the remote on-deck view; it writes world roll 0. */
+    public static boolean applyControlRoll(boolean onGround, boolean occupied, boolean onShipDeck, boolean locallyControlled) {
+        if (skipWorldGroundOrientation(occupied, onShipDeck, locallyControlled)) {
+            return false;
+        }
+        return !onGround;
+    }
+
     /** World yaw, pitch, roll from a row-major ship rotation and deck-relative IA angles. */
     public static double[] compose(double[] shipRot, double deckYawDeg, double deckPitchDeg, double deckRollDeg) {
         return extractIa(mul(shipRot, iaRotation(deckYawDeg, deckPitchDeg, deckRollDeg)));
