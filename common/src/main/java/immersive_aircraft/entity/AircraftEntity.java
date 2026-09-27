@@ -72,9 +72,9 @@ public abstract class AircraftEntity extends EngineVehicle {
     public void tick() {
         // rolling interpolation
         prevRoll = roll;
-        if (onGround()) {
-            setZRot(roll * 0.9f);
-        } else {
+        if (onGround() && !DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
+            setZRot((float) DeckPose.worldGroundStep(getXRot(), roll, 0.0)[1]);
+        } else if (!onGround()) {
             setZRot(-pressingInterpolatedX.getSmooth() * getProperties().get(VehicleStat.ROLL_FACTOR) * (1.0f - inWaterLevel));
         }
 
@@ -149,8 +149,11 @@ public abstract class AircraftEntity extends EngineVehicle {
         applyFriction();
 
         if (onGround()) {
-            // Landing
-            setXRot((getXRot() + getProperties().get(VehicleStat.GROUND_PITCH)) * 0.9f - getProperties().get(VehicleStat.GROUND_PITCH));
+            // Landing. World-space; a remote viewer on a tilted deck must not take this step.
+            if (!DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
+                double groundPitch = getProperties().get(VehicleStat.GROUND_PITCH);
+                setXRot((float) DeckPose.worldGroundStep(getXRot(), roll, groundPitch)[0]);
+            }
         } else if (!wasTouchingWater) {
             // Wind
             Vector3f effect = getWindEffect();

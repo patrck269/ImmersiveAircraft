@@ -74,11 +74,43 @@ public final class CatapultVs {
         }
     }
 
-    private static Object shipAt(Level level, BlockPos pad) throws Exception {
+    public static boolean isShipAt(Level level, double x, double y, double z) {
+        try {
+            return shipAt(level, x, y, z) != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** Row-major 3x3 of the live ship rotation at a world point, or null off-ship. */
+    public static double[] shipRotationAt(Level level, double x, double y, double z) {
+        try {
+            Object ship = shipAt(level, x, y, z);
+            if (ship == null) {
+                return null;
+            }
+            Object transform = ship.getClass().getMethod("getTransform").invoke(ship);
+            Object matrix = transform.getClass().getMethod("getShipToWorld").invoke(transform);
+            double[] m = new double[9];
+            String[] names = {"m00", "m01", "m02", "m10", "m11", "m12", "m20", "m21", "m22"};
+            for (int i = 0; i < names.length; i++) {
+                m[i] = ((Number) matrix.getClass().getMethod(names[i]).invoke(matrix)).doubleValue();
+            }
+            return m;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static Object shipAt(Level level, double x, double y, double z) throws Exception {
         if (SHIP_AT == null) {
             return null;
         }
-        return SHIP_AT.invoke(null, level, pad.getX() + 0.5, pad.getY() + 0.5, pad.getZ() + 0.5);
+        return SHIP_AT.invoke(null, level, x, y, z);
+    }
+
+    private static Object shipAt(Level level, BlockPos pad) throws Exception {
+        return shipAt(level, pad.getX() + 0.5, pad.getY() + 0.5, pad.getZ() + 0.5);
     }
 
     public static Vec3 worldFacing(Level level, BlockPos pad, Direction facing) {

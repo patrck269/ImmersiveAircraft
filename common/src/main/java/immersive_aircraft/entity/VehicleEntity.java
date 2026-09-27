@@ -9,6 +9,7 @@ import immersive_aircraft.Sounds;
 import immersive_aircraft.client.KeyBindings;
 import immersive_aircraft.cobalt.network.NetworkHandler;
 import immersive_aircraft.catapult.CatapultLaunch;
+import immersive_aircraft.catapult.CatapultVs;
 import immersive_aircraft.config.AutoEnterRules;
 import immersive_aircraft.config.Config;
 import immersive_aircraft.data.VehicleDataLoader;
@@ -102,6 +103,12 @@ public abstract class VehicleEntity extends Entity {
 
     public float roll;
     public float prevRoll;
+    private boolean remoteDeckReady;
+    private double remoteDeckYaw;
+    private double remoteDeckPitch;
+    private double remoteDeckRoll;
+    private double remoteDeckPacketYaw = Double.NaN;
+    private double remoteDeckPacketPitch = Double.NaN;
 
     public double lastX;
     public double lastY;
@@ -380,10 +387,12 @@ public abstract class VehicleEntity extends Entity {
         this.z = z;
         serverYRot = yaw;
         serverXRot = pitch;
-        if (!CatapultLaunch.shouldLerpToServerPose(
+        if (!DeckPose.shouldLerpToServerPose(
                 padLocked,
                 getTags().contains("eureka_landed_on_ship"),
-                isControlledByLocalInstance()
+                isControlledByLocalInstance(),
+                isVehicle(),
+                isOnShipDeck()
         )) {
             this.interpolationSteps = 0;
             return;
@@ -592,12 +601,17 @@ public abstract class VehicleEntity extends Entity {
             interpolationSteps = 0;
             syncPacketPositionCodec(getX(), getY(), getZ());
         }
-        if (!CatapultLaunch.shouldLerpToServerPose(
+        if (!DeckPose.shouldLerpToServerPose(
                 padLocked,
                 getTags().contains("eureka_landed_on_ship"),
-                isControlledByLocalInstance()
+                isControlledByLocalInstance(),
+                isVehicle(),
+                isOnShipDeck()
         )) {
             interpolationSteps = 0;
+            if (DeckPose.skipWorldGroundOrientation(isVehicle(), isOnShipDeck(), isControlledByLocalInstance())) {
+                applyRemoteDeckPose();
+            }
             return;
         }
         if (interpolationSteps <= 0) {
@@ -614,6 +628,42 @@ public abstract class VehicleEntity extends Entity {
         setRot(getYRot(), getXRot());
 
         --interpolationSteps;
+    }
+
+    protected boolean isOnShipDeck() {
+        if (getTags().contains("eureka_landed_on_ship")) {
+            return true;
+        }
+        return CatapultVs.isShipAt(level(), getX(), getY(), getZ());
+    }
+
+    /**
+     * Observer pose: live ship rotation composed with the deck-relative
+     * orientation. Recapture only when the server packet's world angles change,
+     * so a tilt of the ship between packets rotates the aircraft with the deck.
+     */
+    private void applyRemoteDeckPose() {
+        double[] ship = CatapultVs.shipRotationAt(level(), getX(), getY(), getZ());
+        if (ship == null) {
+            remoteDeckReady = false;
+            return;
+        }
+        boolean packetChanged = remoteDeckPacketYaw != serverYRot || remoteDeckPacketPitch != serverXRot;
+        if (!remoteDeckReady || packetChanged) {
+            double[] rel = DeckPose.deckRelative(ship, serverYRot, serverXRot, getRoll());
+            remoteDeckYaw = rel[0];
+            remoteDeckPitch = rel[1];
+            if (!remoteDeckReady) {
+                remoteDeckRoll = rel[2];
+            }
+            remoteDeckReady = true;
+            remoteDeckPacketYaw = serverYRot;
+            remoteDeckPacketPitch = serverXRot;
+        }
+        double[] world = DeckPose.compose(ship, remoteDeckYaw, remoteDeckPitch, remoteDeckRoll);
+        setYRot((float) world[0]);
+        setXRot((float) world[1]);
+        setZRot((float) world[2]);
     }
 
     protected abstract void updateVelocity();
