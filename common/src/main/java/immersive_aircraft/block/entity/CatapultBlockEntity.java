@@ -71,8 +71,16 @@ public class CatapultBlockEntity extends BlockEntity {
     }
 
     private void clientClamp(Level level, BlockPos pos, BlockState state) {
+        VehicleEntity docked = findDocked(level, pos);
+        if (docked != null && retain(docked, level, pos)) {
+            this.dockedId = docked.getUUID();
+            DOCKED.put(docked.getUUID(), this);
+            docked.lockToPad();
+            clamp(docked, level, pos, state);
+            return;
+        }
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
-            if (!mayClamp(vehicle, level, pos)) {
+            if (CatapultLaunch.dockDecision(false, true, mayClamp(vehicle, level, pos)) != CatapultLaunch.RETAIN_DOCK) {
                 continue;
             }
             this.dockedId = vehicle.getUUID();
@@ -86,14 +94,10 @@ public class CatapultBlockEntity extends BlockEntity {
 
     private void maintainDock(Level level, BlockPos pos, BlockState state) {
         VehicleEntity docked = findDocked(level, pos);
-        if (docked != null && onPad(docked, level, pos)) {
-            if (mayClamp(docked, level, pos)) {
-                docked.lockToPad();
-                clamp(docked, level, pos, state);
-                DOCKED.put(docked.getUUID(), this);
-            } else {
-                docked.unlockFromPad();
-            }
+        if (docked != null && retain(docked, level, pos)) {
+            docked.lockToPad();
+            clamp(docked, level, pos, state);
+            DOCKED.put(docked.getUUID(), this);
             return;
         }
         if (docked != null) {
@@ -101,7 +105,7 @@ public class CatapultBlockEntity extends BlockEntity {
         }
         clearDock();
         for (VehicleEntity vehicle : vehiclesOnPad(level, pos)) {
-            if (!mayClamp(vehicle, level, pos)) {
+            if (CatapultLaunch.dockDecision(false, true, mayClamp(vehicle, level, pos)) != CatapultLaunch.RETAIN_DOCK) {
                 continue;
             }
             this.dockedId = vehicle.getUUID();
@@ -111,6 +115,12 @@ public class CatapultBlockEntity extends BlockEntity {
             setChanged();
             return;
         }
+    }
+
+    /** Already docked and held stays on the live dock even when the world box missed the pad. */
+    private boolean retain(VehicleEntity vehicle, Level level, BlockPos pos) {
+        return CatapultLaunch.dockDecision(true, onPad(vehicle, level, pos), mayClamp(vehicle, level, pos))
+                == CatapultLaunch.RETAIN_DOCK;
     }
 
     private boolean fire(Level level, BlockPos pos, BlockState state) {
@@ -180,7 +190,7 @@ public class CatapultBlockEntity extends BlockEntity {
                 return vehicle;
             }
         }
-        AABB search = CatapultVs.worldSearch(level, pos).inflate(8.0);
+        AABB search = CatapultVs.worldSearch(level, pos).inflate(CatapultLaunch.DOCK_CATCH_BLOCKS);
         List<VehicleEntity> extras = level.getEntitiesOfClass(VehicleEntity.class, search, v -> this.dockedId.equals(v.getUUID()));
         return extras.isEmpty() ? null : extras.get(0);
     }
@@ -202,11 +212,10 @@ public class CatapultBlockEntity extends BlockEntity {
         Direction facing = state.getValue(CatapultBlock.FACING);
         Vec3 dock = CatapultVs.worldDock(level, pos);
         Vec3 dir = CatapultVs.worldFacing(level, pos, facing);
-        double[] held = CatapultLaunch.heldFromLivePoint(
+        double[] held = CatapultLaunch.poseIfRetained(
+                CatapultLaunch.RETAIN_DOCK,
                 dock.x, dock.y, dock.z,
-                new double[] {vehicle.getX(), vehicle.getY(), vehicle.getZ()},
-                true,
-                vehicle.getTags().contains("eureka_landed_on_ship")
+                new double[] {vehicle.getX(), vehicle.getY(), vehicle.getZ()}
         );
         vehicle.lockToPad();
         vehicle.cancelInterpolation();

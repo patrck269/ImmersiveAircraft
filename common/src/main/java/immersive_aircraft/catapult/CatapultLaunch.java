@@ -17,6 +17,10 @@ public final class CatapultLaunch {
      * blocks/tick of world speed; that must not be treated as leaving the pad.
      */
     public static final double CARRIED_WITH_SHIP = 0.35;
+    /** Extra blocks around the pad so a docked aircraft left behind by a fast ship step is still found. */
+    public static final double DOCK_CATCH_BLOCKS = 16.0;
+    public static final int RETAIN_DOCK = 1;
+    public static final int RELEASE_DOCK = 0;
     /** Extra height above the collision top so a vehicle with minY = HEIGHT is on-pad. */
     public static final double DETECT_ABOVE = 1.0;
 
@@ -143,6 +147,30 @@ public final class CatapultLaunch {
             return true;
         }
         return shouldClampDock(cooldownRemaining, launchTagged, relative);
+    }
+
+    /**
+     * Already docked and still held: clamp to the live dock even when the
+     * world AABB missed the pad after a fast ship step. A new aircraft is
+     * clamped only when it intersects the pad. Hold false releases.
+     */
+    public static int dockDecision(boolean alreadyDocked, boolean intersectsPad, boolean shouldHold) {
+        if (shouldHold && (alreadyDocked || intersectsPad)) {
+            return RETAIN_DOCK;
+        }
+        return RELEASE_DOCK;
+    }
+
+    /** Live dock pose when {@link #dockDecision} retains; null when it releases. */
+    public static double[] poseIfRetained(
+            int decision,
+            double liveX, double liveY, double liveZ,
+            double[] staleWorld
+    ) {
+        if (decision != RETAIN_DOCK) {
+            return null;
+        }
+        return heldFromLivePoint(liveX, liveY, liveZ, staleWorld, true, false);
     }
 
     /** Pad center and dock top through the live ship transform. */

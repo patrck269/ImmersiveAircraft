@@ -7,6 +7,7 @@ import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CatapultLaunchTest {
@@ -268,8 +269,58 @@ class CatapultLaunchTest {
                 "immersive_aircraft", "block", "entity", "CatapultBlockEntity.java"
         ));
         assertTrue(block.contains("shouldHoldOnPad"), "server and client clamp must use the hold decision");
-        assertTrue(block.contains("heldFromLivePoint"), "both sides must place the live dock, not a stale blend");
+        assertTrue(block.contains("dockDecision"), "a missed pad box must still consult the keep-or-release");
+        assertTrue(block.contains("poseIfRetained"), "both sides must place the live dock, not a stale blend");
         assertTrue(block.contains("shipTickVelocity"));
+        assertTrue(block.contains("DOCK_CATCH_BLOCKS"));
         assertFalse(block.contains("horizontalDistance()"), "world horizontal speed must not be the release input");
+        assertFalse(
+                block.contains("docked != null && onPad("),
+                "on-pad intersection must not be required before the hold decision"
+        );
+    }
+
+    @Test
+    void dockedAircraftFiveBlocksOffPadStaysClampedToLiveDock() {
+        int blockX = 10;
+        int blockY = 64;
+        int blockZ = 20;
+        double step = 5.0;
+        double[] before = CatapultLaunch.identityMatrix();
+        double[] after = CatapultLaunch.translationMatrix(step, 0.0, 0.0);
+        double[] stale = CatapultLaunch.liveDock(before, blockX, blockY, blockZ);
+        double[] live = CatapultLaunch.liveDock(after, blockX, blockY, blockZ);
+        assertTrue(live[0] - stale[0] >= step, "the live dock must move with the ship step");
+
+        double half = 0.4;
+        double[] pad = CatapultLaunch.worldDetectionAabb(blockX, blockY, blockZ, after);
+        boolean intersects = CatapultLaunch.intersectsPad(
+                stale[0] - half, stale[1], stale[2] - half,
+                stale[0] + half, stale[1] + 0.8, stale[2] + half,
+                pad[0], pad[1], pad[2], pad[3], pad[4], pad[5]
+        );
+        assertFalse(intersects, "a 5-block ship step leaves the aircraft outside the pad box");
+
+        boolean hold = CatapultLaunch.shouldHoldOnPad(0, false, step, 0.0, 0.0, step, 0.0, 0.0);
+        assertTrue(hold);
+        int decision = CatapultLaunch.dockDecision(true, intersects, hold);
+        assertEquals(CatapultLaunch.RETAIN_DOCK, decision);
+        double[] pose = CatapultLaunch.poseIfRetained(decision, live[0], live[1], live[2], stale);
+        assertEquals(live[0], pose[0], 1e-9, "retained aircraft is clamped to the live dock");
+        assertEquals(live[1], pose[1], 1e-9);
+        assertEquals(live[2], pose[2], 1e-9);
+        assertTrue(Math.abs(pose[0] - stale[0]) >= step);
+
+        assertEquals(
+                CatapultLaunch.RELEASE_DOCK,
+                CatapultLaunch.dockDecision(true, intersects, false),
+                "a real release still clears when the box misses"
+        );
+        assertNull(CatapultLaunch.poseIfRetained(CatapultLaunch.RELEASE_DOCK, live[0], live[1], live[2], stale));
+        assertEquals(
+                CatapultLaunch.RELEASE_DOCK,
+                CatapultLaunch.dockDecision(false, intersects, hold),
+                "a plane that was never docked is not grabbed from 5 blocks away"
+        );
     }
 }
