@@ -1,5 +1,6 @@
 package immersive_aircraft.catapult;
 
+import java.lang.reflect.Method;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
@@ -11,7 +12,24 @@ import net.minecraft.world.phys.Vec3;
  * shipyard block entity can find vehicles in world space.
  */
 public final class CatapultVs {
+    private static final Method SHIP_AT = vsMethod("getShipManagingPos", Level.class, double.class, double.class, double.class);
+    private static final Method TO_WORLD_VEC = vsMethod("toWorldCoordinates", Level.class, Vec3.class);
+    private static final Method TO_WORLD_BLOCK = vsMethod("toWorldCoordinates", Level.class, BlockPos.class);
+    private static final Method TRANSFORM_AABB = vsMethod("transformAabbToWorld", Level.class, AABB.class);
+    private static Method velocity;
+    private static Method componentX;
+    private static Method componentY;
+    private static Method componentZ;
+
     private CatapultVs() {
+    }
+
+    private static Method vsMethod(String name, Class<?>... args) {
+        try {
+            return Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt").getMethod(name, args);
+        } catch (Throwable ignored) {
+            return null;
+        }
     }
 
     public static AABB worldSearch(Level level, BlockPos pad) {
@@ -38,10 +56,18 @@ public final class CatapultVs {
             if (ship == null) {
                 return Vec3.ZERO;
             }
-            Object vel = ship.getClass().getMethod("getVelocity").invoke(ship);
-            double x = ((Number) vel.getClass().getMethod("x").invoke(vel)).doubleValue();
-            double y = ((Number) vel.getClass().getMethod("y").invoke(vel)).doubleValue();
-            double z = ((Number) vel.getClass().getMethod("z").invoke(vel)).doubleValue();
+            if (velocity == null) {
+                velocity = ship.getClass().getMethod("getVelocity");
+            }
+            Object vel = velocity.invoke(ship);
+            if (componentX == null) {
+                componentX = vel.getClass().getMethod("x");
+                componentY = vel.getClass().getMethod("y");
+                componentZ = vel.getClass().getMethod("z");
+            }
+            double x = ((Number) componentX.invoke(vel)).doubleValue();
+            double y = ((Number) componentY.invoke(vel)).doubleValue();
+            double z = ((Number) componentZ.invoke(vel)).doubleValue();
             return new Vec3(x, y, z).scale(0.05);
         } catch (Throwable ignored) {
             return Vec3.ZERO;
@@ -49,9 +75,10 @@ public final class CatapultVs {
     }
 
     private static Object shipAt(Level level, BlockPos pad) throws Exception {
-        Class<?> kt = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt");
-        return kt.getMethod("getShipManagingPos", Level.class, double.class, double.class, double.class)
-                .invoke(null, level, pad.getX() + 0.5, pad.getY() + 0.5, pad.getZ() + 0.5);
+        if (SHIP_AT == null) {
+            return null;
+        }
+        return SHIP_AT.invoke(null, level, pad.getX() + 0.5, pad.getY() + 0.5, pad.getZ() + 0.5);
     }
 
     public static Vec3 worldFacing(Level level, BlockPos pad, Direction facing) {
@@ -65,10 +92,11 @@ public final class CatapultVs {
     }
 
     public static Vec3 toWorldCoordinates(Level level, Vec3 pos) {
+        if (TO_WORLD_VEC == null) {
+            return pos;
+        }
         try {
-            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
-                    .getMethod("toWorldCoordinates", Level.class, Vec3.class)
-                    .invoke(null, level, pos);
+            Object v = TO_WORLD_VEC.invoke(null, level, pos);
             if (v instanceof Vec3 vec) {
                 return vec;
             }
@@ -78,10 +106,11 @@ public final class CatapultVs {
     }
 
     public static Vec3 toWorldCoordinates(Level level, BlockPos pos) {
+        if (TO_WORLD_BLOCK == null) {
+            return Vec3.atLowerCornerOf(pos);
+        }
         try {
-            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
-                    .getMethod("toWorldCoordinates", Level.class, BlockPos.class)
-                    .invoke(null, level, pos);
+            Object v = TO_WORLD_BLOCK.invoke(null, level, pos);
             if (v instanceof Vec3 vec) {
                 return vec;
             }
@@ -91,10 +120,11 @@ public final class CatapultVs {
     }
 
     public static AABB transformAabbToWorld(Level level, AABB box) {
+        if (TRANSFORM_AABB == null) {
+            return box;
+        }
         try {
-            Object v = Class.forName("org.valkyrienskies.mod.common.VSGameUtilsKt")
-                    .getMethod("transformAabbToWorld", Level.class, AABB.class)
-                    .invoke(null, level, box);
+            Object v = TRANSFORM_AABB.invoke(null, level, box);
             if (v instanceof AABB aabb) {
                 return aabb;
             }
