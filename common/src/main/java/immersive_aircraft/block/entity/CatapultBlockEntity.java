@@ -1,6 +1,7 @@
 package immersive_aircraft.block.entity;
 
 import immersive_aircraft.BlockEntityTypes;
+import immersive_aircraft.Main;
 import immersive_aircraft.Sounds;
 import immersive_aircraft.block.CatapultBlock;
 import immersive_aircraft.catapult.CatapultLaunch;
@@ -19,6 +20,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ConcurrentModificationException;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -30,30 +32,52 @@ public class CatapultBlockEntity extends BlockEntity {
     private boolean wasPowered;
     private int cooldown;
     private UUID dockedId;
+    private boolean warnedConcurrentQuery;
 
     public CatapultBlockEntity(BlockPos pos, BlockState state) {
         super(BlockEntityTypes.CATAPULT.get(), pos, state);
     }
 
     public static void tick(Level level, BlockPos pos, BlockState state, CatapultBlockEntity be) {
+        try {
+            be.tickGuarded(level, pos, state);
+        } catch (ConcurrentModificationException e) {
+            be.skipConcurrentQuery(pos, e);
+        }
+    }
+
+    private void tickGuarded(Level level, BlockPos pos, BlockState state) {
         if (level.isClientSide) {
-            if (be.cooldown > 0) {
-                be.cooldown--;
+            if (cooldown > 0) {
+                cooldown--;
             }
-            be.clientClamp(level, pos, state);
+            clientClamp(level, pos, state);
             return;
         }
-        be.maintainDock(level, pos, state);
+        maintainDock(level, pos, state);
         boolean powered = level.hasNeighborSignal(pos);
-        if (CatapultLaunch.shouldFire(powered, be.wasPowered, be.cooldown)) {
-            if (be.fire(level, pos, state)) {
-                be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
-                be.sync();
+        if (CatapultLaunch.shouldFire(powered, wasPowered, cooldown)) {
+            if (fire(level, pos, state)) {
+                cooldown = CatapultLaunch.COOLDOWN_TICKS;
+                sync();
             }
         }
-        be.wasPowered = powered;
-        if (be.cooldown > 0) {
-            be.cooldown--;
+        wasPowered = powered;
+        if (cooldown > 0) {
+            cooldown--;
+        }
+    }
+
+    /**
+     * Another thread can mutate a ship's entity section while getEntitiesOfClass streams it
+     * (TeddyCraft crashes 2026-11-01 and 2026-11-22). findDocked queries before any dock change,
+     * so a throw there keeps the dock; a later throw only cuts short the re-dock search after the
+     * old dock was already released. The next tick retries either way.
+     */
+    private void skipConcurrentQuery(BlockPos pos, ConcurrentModificationException e) {
+        if (!warnedConcurrentQuery) {
+            warnedConcurrentQuery = true;
+            Main.LOGGER.warn("Catapult at {} skipped a tick: entity section changed during the vehicle query ({})", pos, e.toString());
         }
     }
 
@@ -62,7 +86,14 @@ public class CatapultBlockEntity extends BlockEntity {
         if (be == null || be.isRemoved() || be.cooldown > 0 || be.getLevel() == null) {
             return false;
         }
-        if (be.fire(be.getLevel(), be.getBlockPos(), be.getBlockState())) {
+        boolean fired;
+        try {
+            fired = be.fire(be.getLevel(), be.getBlockPos(), be.getBlockState());
+        } catch (ConcurrentModificationException e) {
+            be.skipConcurrentQuery(be.getBlockPos(), e);
+            return false;
+        }
+        if (fired) {
             be.cooldown = CatapultLaunch.COOLDOWN_TICKS;
             be.sync();
             return true;
